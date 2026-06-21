@@ -9,6 +9,11 @@
  */
 export function SyncStatus({ status, lastSyncedAt, error, onRetry }) {
   const config = {
+    local: {
+      dot: 'bg-gray-300',
+      text: 'text-white/60',
+      label: 'Local',
+    },
     idle: {
       dot: 'bg-gray-400',
       text: 'text-gray-600',

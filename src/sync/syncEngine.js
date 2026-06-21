@@ -33,7 +33,7 @@
  */
 
 import { db, getUnsynced, markSynced, upsertLocal } from '../db/db'
-import { supabase } from '../db/supabase'
+import { supabase, SUPABASE_CONFIGURED } from '../db/supabase'
 
 // Tables that have their own `synced` flag and are synced independently
 const SYNCED_TABLES = [
@@ -156,6 +156,9 @@ async function pullAll(since) {
  * Throws on any error (caller should catch and set status to 'error').
  */
 export async function runSync() {
+  // No credentials — running in local-only mode, nothing to sync
+  if (!SUPABASE_CONFIGURED) return new Date().toISOString()
+
   // Verify we have an active session before attempting network calls
   const {
     data: { session },
