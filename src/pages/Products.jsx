@@ -20,15 +20,6 @@ function stockBadge(product) {
   return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">{qty} in stock</span>
 }
 
-function stockDetail(product) {
-  const wh = product.qty_warehouse ?? 0
-  const st = product.qty_store ?? 0
-  return (
-    <p className="text-xs text-gray-400 mt-0.5">
-      {st} store · {wh} warehouse
-    </p>
-  )
-}
 
 export function Products() {
   const navigate = useNavigate()
@@ -118,7 +109,8 @@ export function Products() {
               onClick={() => navigate(`/products/${product.id}/edit`)}
               className="w-full text-left bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md active:bg-gray-50 transition-shadow"
             >
-              <div className="flex items-start justify-between gap-2">
+              {/* Top row: name + price */}
+              <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="min-w-0">
                   <p className="font-semibold text-gray-800 truncate">{product.name}</p>
                   {product.sku && (
@@ -128,10 +120,23 @@ export function Products() {
                     <p className="text-xs text-gray-400">{product.category}</p>
                   )}
                 </div>
-                <div className="text-right shrink-0 space-y-1">
+                <div className="text-right shrink-0">
                   <p className="font-bold text-gray-800">{fmt(product.selling_price)}</p>
-                  {stockBadge(product)}
-                  {stockDetail(product)}
+                  <div className="mt-1">{stockBadge(product)}</div>
+                </div>
+              </div>
+
+              {/* Stock location row */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-blue-50 rounded-lg px-3 py-2">
+                  <p className="text-xs font-medium text-blue-500 uppercase tracking-wide">Store</p>
+                  <p className="text-lg font-bold text-blue-700 leading-tight">{product.qty_store ?? 0}</p>
+                  <p className="text-xs text-blue-400">units</p>
+                </div>
+                <div className="bg-amber-50 rounded-lg px-3 py-2">
+                  <p className="text-xs font-medium text-amber-500 uppercase tracking-wide">Warehouse</p>
+                  <p className="text-lg font-bold text-amber-700 leading-tight">{product.qty_warehouse ?? 0}</p>
+                  <p className="text-xs text-amber-400">units</p>
                 </div>
               </div>
             </button>
