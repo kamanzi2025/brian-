@@ -11,6 +11,18 @@
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Autoshop Finance Manager</title>
+    <script>
+      (function () {
+        var p = window.location.search.match(/[?&]p=([^&]*)/);
+        var h = window.location.search.match(/[?&]h=([^&]*)/);
+        if (p) {
+          window.history.replaceState(
+            null, null,
+            '/' + decodeURIComponent(p[1]) + (h ? '#' + decodeURIComponent(h[1]) : '')
+          );
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
