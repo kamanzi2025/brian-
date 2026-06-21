@@ -21,7 +21,7 @@ export function Login() {
   return (
     <div className="min-h-screen bg-blue-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8">
-        <h1 className="text-2xl font-bold text-gray-800 mb-1">AutoParts Manager</h1>
+        <h1 className="text-2xl font-bold text-gray-800 mb-1">Autoshop Finance Manager</h1>
         <p className="text-gray-500 text-sm mb-8">Sign in to your account</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">

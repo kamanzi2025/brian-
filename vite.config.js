@@ -23,8 +23,8 @@ export default defineConfig({
       },
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
-        name: 'AutoParts Manager',
-        short_name: 'AutoParts',
+        name: 'Autoshop Finance Manager',
+        short_name: 'Autoshop',
         description: 'Financial management for auto parts shop',
         theme_color: '#1e40af',
         background_color: '#ffffff',
