@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { Login } from './pages/Login'
 import { Home } from './pages/Home'
@@ -51,10 +51,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter basename="/finance-management-">
+    <HashRouter>
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
-    </BrowserRouter>
+    </HashRouter>
   )
 }

@@ -11,17 +11,6 @@
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Autoshop Finance Manager</title>
-    <script>
-      (function () {
-        var r = window.location.search.match(/[?&]r=([^&]*)/);
-        if (r) {
-          window.history.replaceState(
-            null, null,
-            '/finance-management-' + decodeURIComponent(r[1])
-          );
-        }
-      })();
-    </script>
   </head>
   <body>
     <div id="root"></div>

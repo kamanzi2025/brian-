@@ -2,12 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <script>
-      var seg = window.location.pathname.replace('/finance-management-', '') || '/'
-      window.location.replace(
-        '/finance-management-/?r=' + encodeURIComponent(seg + window.location.search + window.location.hash)
-      )
-    </script>
+    <meta http-equiv="refresh" content="0;url=/finance-management-/" />
   </head>
   <body></body>
 </html>
