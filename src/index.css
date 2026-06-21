@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* Reset body margin so Tailwind layout fills the viewport cleanly */
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100svh;
+}
