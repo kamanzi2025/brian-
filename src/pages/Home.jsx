@@ -16,6 +16,14 @@ export function Home() {
     () => db.products.filter((p) => (p.reorder_level ?? 0) > 0 && ((p.qty_warehouse ?? 0) + (p.qty_store ?? 0)) <= (p.reorder_level ?? 0)).count(),
     []
   )
+  const storeTotal = useLiveQuery(
+    () => db.products.toArray().then((rows) => rows.reduce((s, p) => s + (p.qty_store ?? 0), 0)),
+    []
+  )
+  const warehouseTotal = useLiveQuery(
+    () => db.products.toArray().then((rows) => rows.reduce((s, p) => s + (p.qty_warehouse ?? 0), 0)),
+    []
+  )
   const customerCount = useLiveQuery(() => db.customers.count(), [])
   const saleCount = useLiveQuery(() => db.sales.count(), [])
   const totalSales = useLiveQuery(() =>
@@ -47,28 +55,42 @@ export function Home() {
         )}
 
         {/* KPI row */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <p className="text-xs text-gray-400 uppercase tracking-wide">Total Sales</p>
+          <p className="text-2xl font-bold text-gray-800 mt-1">{fmt(totalSales ?? 0)}</p>
+        </div>
+
+        {/* Stock by location */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Total Sales</p>
-            <p className="text-2xl font-bold text-gray-800 mt-1">{fmt(totalSales ?? 0)}</p>
+          <div
+            className="bg-blue-50 rounded-xl border border-blue-100 shadow-sm p-4 cursor-pointer active:scale-95 transition-transform"
+            onClick={() => navigate('/products')}
+          >
+            <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide">Store Stock</p>
+            <p className="text-3xl font-bold text-blue-700 mt-1">{storeTotal ?? '…'}</p>
+            <p className="text-xs text-blue-400 mt-0.5">units at store</p>
           </div>
           <div
-            className={`rounded-xl border shadow-sm p-4 ${
-              (lowStockCount ?? 0) > 0
-                ? 'bg-yellow-50 border-yellow-200 cursor-pointer'
-                : 'bg-white border-gray-100'
-            }`}
-            onClick={() => lowStockCount > 0 && navigate('/products')}
+            className="bg-amber-50 rounded-xl border border-amber-100 shadow-sm p-4 cursor-pointer active:scale-95 transition-transform"
+            onClick={() => navigate('/products')}
           >
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Low Stock</p>
-            <p className={`text-2xl font-bold mt-1 ${(lowStockCount ?? 0) > 0 ? 'text-yellow-700' : 'text-gray-800'}`}>
-              {lowStockCount ?? '…'}
-            </p>
-            {(lowStockCount ?? 0) > 0 && (
-              <p className="text-xs text-yellow-600 mt-0.5">Tap to view →</p>
-            )}
+            <p className="text-xs font-semibold text-amber-500 uppercase tracking-wide">Warehouse</p>
+            <p className="text-3xl font-bold text-amber-700 mt-1">{warehouseTotal ?? '…'}</p>
+            <p className="text-xs text-amber-400 mt-0.5">units in warehouse</p>
           </div>
         </div>
+
+        {/* Low stock alert */}
+        {(lowStockCount ?? 0) > 0 && (
+          <button
+            onClick={() => navigate('/products')}
+            className="w-full bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-left"
+          >
+            <p className="text-sm font-semibold text-yellow-800">
+              {lowStockCount} product{lowStockCount !== 1 ? 's' : ''} running low — tap to view
+            </p>
+          </button>
+        )}
 
         {/* Quick nav grid */}
         <section>
