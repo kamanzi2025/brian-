@@ -1,15 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { runSync } from './syncEngine'
-
-// Possible states shown in the UI
-// 'idle'    — authenticated, online, sync not running
-// 'syncing' — sync in progress
-// 'synced'  — last sync completed successfully
-// 'offline' — browser reports no network connection
-// 'error'   — last sync attempt failed
+import { SUPABASE_CONFIGURED } from '../db/supabase'
 
 export function useSyncStatus() {
-  const [status, setStatus] = useState('idle')
+  const [status, setStatus] = useState(SUPABASE_CONFIGURED ? 'idle' : 'offline')
   const [lastSyncedAt, setLastSyncedAt] = useState(
     () => localStorage.getItem('autoparts_lastSyncedAt') ?? null
   )
@@ -41,6 +35,8 @@ export function useSyncStatus() {
   }, [])
 
   useEffect(() => {
+    if (!SUPABASE_CONFIGURED) return
+
     // Sync on mount
     sync()
 

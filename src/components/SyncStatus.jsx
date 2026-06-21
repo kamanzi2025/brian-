@@ -25,9 +25,9 @@ export function SyncStatus({ status, lastSyncedAt, error, onRetry }) {
       label: 'Synced',
     },
     offline: {
-      dot: 'bg-yellow-500',
-      text: 'text-yellow-700',
-      label: 'Offline — changes saved locally',
+      dot: 'bg-green-500',
+      text: 'text-green-700',
+      label: 'Saved locally',
     },
     error: {
       dot: 'bg-red-500',
