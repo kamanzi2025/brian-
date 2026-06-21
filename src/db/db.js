@@ -9,7 +9,7 @@ import Dexie from 'dexie'
 
 export const db = new Dexie('autoparts_manager')
 
-db.version(1).stores({
+const STORES = {
   products:
     'id, name, sku, category, supplier_id, updated_at, synced',
 
@@ -40,7 +40,18 @@ db.version(1).stores({
   // direction: 'in' (received) | 'out' (paid)
   payments:
     'id, related_sale_id, related_purchase_id, date, method, direction, updated_at, synced',
-})
+}
+
+db.version(1).stores(STORES)
+
+// v2: split quantity_on_hand into qty_warehouse + qty_store
+db.version(2).stores(STORES).upgrade((tx) =>
+  tx.table('products').toCollection().modify((p) => {
+    p.qty_warehouse = p.quantity_on_hand ?? 0
+    p.qty_store = 0
+    delete p.quantity_on_hand
+  })
+)
 
 // ─── Convenience helpers ─────────────────────────────────────────────────────
 

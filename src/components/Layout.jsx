@@ -32,7 +32,7 @@ export function Layout({ children, title, showBack = false, action }) {
         )}
 
         <h1 className="flex-1 font-bold text-lg tracking-tight truncate">
-          {title ?? 'Autoshop Finance Manager'}
+          {title ?? 'AutoParts Manager'}
         </h1>
 
         <div className="shrink-0">

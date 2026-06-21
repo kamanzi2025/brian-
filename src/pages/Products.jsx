@@ -5,8 +5,12 @@ import { db } from '../db/db'
 import { Layout } from '../components/Layout'
 import { fmt } from '../utils/format'
 
+function totalQty(p) {
+  return (p.qty_warehouse ?? 0) + (p.qty_store ?? 0)
+}
+
 function stockBadge(product) {
-  const qty = product.quantity_on_hand ?? 0
+  const qty = totalQty(product)
   const reorder = product.reorder_level ?? 0
 
   if (qty === 0)
@@ -14,6 +18,16 @@ function stockBadge(product) {
   if (reorder > 0 && qty <= reorder)
     return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">Low stock</span>
   return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">{qty} in stock</span>
+}
+
+function stockDetail(product) {
+  const wh = product.qty_warehouse ?? 0
+  const st = product.qty_store ?? 0
+  return (
+    <p className="text-xs text-gray-400 mt-0.5">
+      {st} store · {wh} warehouse
+    </p>
+  )
 }
 
 export function Products() {
@@ -26,7 +40,7 @@ export function Products() {
   const lowCount = useMemo(
     () =>
       (allProducts ?? []).filter(
-        (p) => (p.reorder_level ?? 0) > 0 && (p.quantity_on_hand ?? 0) <= (p.reorder_level ?? 0)
+        (p) => (p.reorder_level ?? 0) > 0 && totalQty(p) <= (p.reorder_level ?? 0)
       ).length,
     [allProducts]
   )
@@ -44,7 +58,7 @@ export function Products() {
     }
     if (filter === 'low') {
       list = list.filter(
-        (p) => (p.reorder_level ?? 0) > 0 && (p.quantity_on_hand ?? 0) <= (p.reorder_level ?? 0)
+        (p) => (p.reorder_level ?? 0) > 0 && totalQty(p) <= (p.reorder_level ?? 0)
       )
     }
     return list
@@ -117,6 +131,7 @@ export function Products() {
                 <div className="text-right shrink-0 space-y-1">
                   <p className="font-bold text-gray-800">{fmt(product.selling_price)}</p>
                   {stockBadge(product)}
+                  {stockDetail(product)}
                 </div>
               </div>
             </button>

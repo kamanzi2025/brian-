@@ -270,7 +270,7 @@ export function NewPurchase() {
             </div>
             <div className="text-right shrink-0">
               <p className="font-bold text-gray-800">{fmt(p.cost_price)}</p>
-              <p className="text-xs text-gray-400">{p.quantity_on_hand ?? 0} in stock</p>
+              <p className="text-xs text-gray-400">{p.qty_store ?? 0} store · {p.qty_warehouse ?? 0} wh.</p>
             </div>
           </div>
         )}

@@ -14,7 +14,7 @@ const CATEGORIES = [
 const EMPTY = {
   name: '', sku: '', category: '',
   cost_price: '', selling_price: '',
-  quantity_on_hand: '0', reorder_level: '5',
+  qty_warehouse: '0', qty_store: '0', reorder_level: '5',
   supplier_id: '',
 }
 
@@ -54,7 +54,8 @@ export function ProductForm() {
             category: p.category ?? '',
             cost_price: String(p.cost_price ?? ''),
             selling_price: String(p.selling_price ?? ''),
-            quantity_on_hand: String(p.quantity_on_hand ?? 0),
+            qty_warehouse: String(p.qty_warehouse ?? 0),
+            qty_store: String(p.qty_store ?? 0),
             reorder_level: String(p.reorder_level ?? 0),
             supplier_id: p.supplier_id ?? '',
           })
@@ -82,7 +83,8 @@ export function ProductForm() {
         category: form.category.trim() || null,
         cost_price: parseFloat(form.cost_price) || 0,
         selling_price: parseFloat(form.selling_price) || 0,
-        quantity_on_hand: parseInt(form.quantity_on_hand, 10) || 0,
+        qty_warehouse: parseInt(form.qty_warehouse, 10) || 0,
+        qty_store: parseInt(form.qty_store, 10) || 0,
         reorder_level: parseInt(form.reorder_level, 10) || 0,
         supplier_id: form.supplier_id || null,
         updated_at: nowIso(),
@@ -167,25 +169,35 @@ export function ProductForm() {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Qty in Stock">
+          <Field label="Qty at Warehouse">
             <input
               type="number"
               min="0"
               className={inputCls}
-              value={form.quantity_on_hand}
-              onChange={(e) => set('quantity_on_hand', e.target.value)}
+              value={form.qty_warehouse}
+              onChange={(e) => set('qty_warehouse', e.target.value)}
             />
           </Field>
-          <Field label="Reorder Level">
+          <Field label="Qty at Store">
             <input
               type="number"
               min="0"
               className={inputCls}
-              value={form.reorder_level}
-              onChange={(e) => set('reorder_level', e.target.value)}
+              value={form.qty_store}
+              onChange={(e) => set('qty_store', e.target.value)}
             />
           </Field>
         </div>
+
+        <Field label="Reorder Level">
+          <input
+            type="number"
+            min="0"
+            className={inputCls}
+            value={form.reorder_level}
+            onChange={(e) => set('reorder_level', e.target.value)}
+          />
+        </Field>
 
         <Field label="Supplier">
           <select

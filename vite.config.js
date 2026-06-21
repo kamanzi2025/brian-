@@ -4,7 +4,6 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: '/finance-management-/',
   plugins: [
     react(),
     tailwindcss(),
@@ -13,9 +12,7 @@ export default defineConfig({
       // Cache the app shell (HTML, JS, CSS, fonts) for offline use
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallback: '/finance-management-/index.html',
-        skipWaiting: true,
-        clientsClaim: true,
+        // Runtime caching: skip Supabase API calls (those need network)
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
@@ -25,14 +22,14 @@ export default defineConfig({
       },
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
-        name: 'Autoshop Finance Manager',
-        short_name: 'Autoshop',
+        name: 'AutoParts Manager',
+        short_name: 'AutoParts',
         description: 'Financial management for auto parts shop',
         theme_color: '#1e40af',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait-primary',
-        start_url: '/finance-management-/',
+        start_url: '/',
         icons: [
           {
             src: '/icons/icon-192.png',

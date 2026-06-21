@@ -27,7 +27,7 @@ export async function saveSale({ sale, items }) {
           .where('id')
           .equals(item.product_id)
           .modify((p) => {
-            p.quantity_on_hand = Math.max(0, (p.quantity_on_hand || 0) - item.quantity)
+            p.qty_store = Math.max(0, (p.qty_store || 0) - item.quantity)
             p.updated_at = nowIso()
             p.synced = 0
           })
@@ -64,7 +64,7 @@ export async function savePurchase({ purchase, items }) {
           .where('id')
           .equals(item.product_id)
           .modify((p) => {
-            p.quantity_on_hand = (p.quantity_on_hand || 0) + item.quantity
+            p.qty_warehouse = (p.qty_warehouse || 0) + item.quantity
             // Update cost_price to the most recent purchase cost so margins stay current
             p.cost_price = item.unit_cost
             p.updated_at = nowIso()

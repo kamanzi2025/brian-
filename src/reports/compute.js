@@ -191,7 +191,7 @@ export async function computeBalanceSheet() {
   const cashOnHand = cashSales + paymentsIn - paymentsOut - totalExpenses - paidPurchases
 
   const inventoryValue = allProducts.reduce(
-    (s, p) => s + (p.quantity_on_hand ?? 0) * (p.cost_price ?? 0),
+    (s, p) => s + ((p.qty_warehouse ?? 0) + (p.qty_store ?? 0)) * (p.cost_price ?? 0),
     0
   )
 
@@ -311,12 +311,14 @@ export async function computeInventory() {
 
   const rows = products.map((p) => ({
     ...p,
-    stockValue: (p.quantity_on_hand ?? 0) * (p.cost_price ?? 0),
+    qty_total: (p.qty_warehouse ?? 0) + (p.qty_store ?? 0),
+    stockValue: ((p.qty_warehouse ?? 0) + (p.qty_store ?? 0)) * (p.cost_price ?? 0),
     lastSoldDate: lastSoldMap[p.id] ?? null,
     isSlowMover: !recentProductIds.has(p.id),
-    isOutOfStock: (p.quantity_on_hand ?? 0) === 0,
+    isOutOfStock: (p.qty_warehouse ?? 0) + (p.qty_store ?? 0) === 0,
     isLowStock:
-      (p.reorder_level ?? 0) > 0 && (p.quantity_on_hand ?? 0) <= (p.reorder_level ?? 0),
+      (p.reorder_level ?? 0) > 0 &&
+      (p.qty_warehouse ?? 0) + (p.qty_store ?? 0) <= (p.reorder_level ?? 0),
   }))
 
   return {

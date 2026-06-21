@@ -37,7 +37,7 @@ export function InventoryReport() {
 
   // Apply sort
   if (sortBy === 'value') rows = [...rows].sort((a, b) => b.stockValue - a.stockValue)
-  if (sortBy === 'qty') rows = [...rows].sort((a, b) => (a.quantity_on_hand ?? 0) - (b.quantity_on_hand ?? 0))
+  if (sortBy === 'qty') rows = [...rows].sort((a, b) => (a.qty_total ?? 0) - (b.qty_total ?? 0))
 
   return (
     <div className="space-y-4">
@@ -134,8 +134,9 @@ export function InventoryReport() {
                 </div>
                 <div className="text-right shrink-0">
                   <p className="font-bold text-gray-800 text-sm">
-                    {p.quantity_on_hand ?? 0} units
+                    {p.qty_total ?? 0} units
                   </p>
+                  <p className="text-xs text-gray-400">{p.qty_store ?? 0} store · {p.qty_warehouse ?? 0} wh.</p>
                   <p className="text-xs text-gray-500">{fmt(p.cost_price)} cost</p>
                   <p className="text-xs text-gray-500 font-medium">{fmt(p.stockValue)} value</p>
                 </div>

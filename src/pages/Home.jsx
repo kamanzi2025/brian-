@@ -13,7 +13,7 @@ export function Home() {
 
   const productCount = useLiveQuery(() => db.products.count(), [])
   const lowStockCount = useLiveQuery(
-    () => db.products.filter((p) => (p.reorder_level ?? 0) > 0 && (p.quantity_on_hand ?? 0) <= (p.reorder_level ?? 0)).count(),
+    () => db.products.filter((p) => (p.reorder_level ?? 0) > 0 && ((p.qty_warehouse ?? 0) + (p.qty_store ?? 0)) <= (p.reorder_level ?? 0)).count(),
     []
   )
   const customerCount = useLiveQuery(() => db.customers.count(), [])
