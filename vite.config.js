@@ -13,7 +13,9 @@ export default defineConfig({
       // Cache the app shell (HTML, JS, CSS, fonts) for offline use
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Runtime caching: skip Supabase API calls (those need network)
+        navigateFallback: '/finance-management-/index.html',
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
