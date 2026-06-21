@@ -13,12 +13,11 @@
     <title>Autoshop Finance Manager</title>
     <script>
       (function () {
-        var p = window.location.search.match(/[?&]p=([^&]*)/);
-        var h = window.location.search.match(/[?&]h=([^&]*)/);
-        if (p) {
+        var r = window.location.search.match(/[?&]r=([^&]*)/);
+        if (r) {
           window.history.replaceState(
             null, null,
-            '/' + decodeURIComponent(p[1]) + (h ? '#' + decodeURIComponent(h[1]) : '')
+            '/finance-management-' + decodeURIComponent(r[1])
           );
         }
       })();
