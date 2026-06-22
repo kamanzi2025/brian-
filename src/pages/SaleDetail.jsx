@@ -159,10 +159,10 @@ export function SaleDetail() {
         </section>
 
         {/* Action buttons */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="flex gap-3">
           <button
             onClick={() => setShowPrint(true)}
-            className="flex items-center justify-center gap-2 border border-blue-300 text-blue-700 font-semibold rounded-xl py-3 text-sm hover:bg-blue-50"
+            className="flex-1 flex items-center justify-center gap-2 border border-blue-300 text-blue-700 font-semibold rounded-xl py-3 text-sm hover:bg-blue-50"
           >
             Print / Share
           </button>
@@ -170,7 +170,7 @@ export function SaleDetail() {
           {!sale.voided && (
             <button
               onClick={() => setShowVoidModal(true)}
-              className="flex items-center justify-center gap-2 border border-red-300 text-red-600 font-semibold rounded-xl py-3 text-sm hover:bg-red-50"
+              className="flex-1 flex items-center justify-center gap-2 border border-red-300 text-red-600 font-semibold rounded-xl py-3 text-sm hover:bg-red-50"
             >
               Void Sale
             </button>

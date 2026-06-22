@@ -19,8 +19,8 @@ import { db } from '../db/db'
 
 /**
  * Overall P&L summary for a date range.
- * COGS uses the product's CURRENT cost_price as an approximation
- * (cost at time of sale is not stored in sale_items).
+ * COGS uses cost_price recorded on each sale_item; falls back to the
+ * product's current cost_price for records saved before that field was added.
  */
 export async function computePL({ from, to }) {
   const sales = await db.sales
