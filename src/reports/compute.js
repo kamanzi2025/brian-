@@ -25,7 +25,7 @@ import { db } from '../db/db'
 export async function computePL({ from, to }) {
   const sales = await db.sales
     .where('date').between(from, to, true, true)
-    .filter((s) => s.status !== 'cancelled')
+    .filter((s) => !s.voided && s.status !== 'cancelled')
     .toArray()
 
   const revenue = sales.reduce((s, r) => s + (r.total ?? 0), 0)
@@ -35,6 +35,7 @@ export async function computePL({ from, to }) {
     const saleIds = sales.map((s) => s.id)
     const items = await db.sale_items.where('sale_id').anyOf(saleIds).toArray()
 
+    // Build product map as fallback for old records where cost_price=0 on the item
     const productIds = [...new Set(items.map((i) => i.product_id).filter(Boolean))]
     const products =
       productIds.length > 0
@@ -43,7 +44,10 @@ export async function computePL({ from, to }) {
     const pMap = new Map(products.map((p) => [p.id, p]))
 
     cogs = items.reduce((s, i) => {
-      const cost = pMap.get(i.product_id)?.cost_price ?? 0
+      // Prefer cost recorded at sale time; fall back to current product cost
+      const cost = (i.cost_price && i.cost_price > 0)
+        ? i.cost_price
+        : (pMap.get(i.product_id)?.cost_price ?? 0)
       return s + i.quantity * cost
     }, 0)
   }
@@ -83,7 +87,7 @@ export async function computePL({ from, to }) {
 export async function computePLMonthly({ from, to }) {
   const allSales = await db.sales
     .where('date').between(from, to, true, true)
-    .filter((s) => s.status !== 'cancelled')
+    .filter((s) => !s.voided && s.status !== 'cancelled')
     .toArray()
 
   const saleMap = new Map(allSales.map((s) => [s.id, s]))
@@ -120,7 +124,10 @@ export async function computePLMonthly({ from, to }) {
     if (!sale) continue
     const k = sale.date.slice(0, 7)
     ensure(k)
-    months[k].cogs += item.quantity * (pMap.get(item.product_id)?.cost_price ?? 0)
+    const cost = (item.cost_price && item.cost_price > 0)
+      ? item.cost_price
+      : (pMap.get(item.product_id)?.cost_price ?? 0)
+    months[k].cogs += item.quantity * cost
   }
   for (const e of allExpenses) {
     const k = e.date.slice(0, 7)
@@ -450,4 +457,97 @@ function aggregateBuckets(rows, amountField) {
     acc[r.bucket] = (acc[r.bucket] || 0) + (r[amountField] ?? 0)
     return acc
   }, emptyBuckets())
+}
+
+// ─── SALES BY PRODUCT ─────────────────────────────────────────────────────────
+
+export async function computeSalesByProduct({ from, to }) {
+  const sales = await db.sales
+    .where('date').between(from, to, true, true)
+    .filter((s) => !s.voided && s.status !== 'cancelled')
+    .toArray()
+
+  if (sales.length === 0) return { rows: [], totalRevenue: 0, totalCogs: 0, totalProfit: 0 }
+
+  const saleIds = sales.map((s) => s.id)
+  const items = await db.sale_items.where('sale_id').anyOf(saleIds).toArray()
+
+  const productIds = [...new Set(items.map((i) => i.product_id).filter(Boolean))]
+  const products =
+    productIds.length > 0
+      ? await db.products.where('id').anyOf(productIds).toArray()
+      : []
+  const pMap = new Map(products.map((p) => [p.id, p]))
+
+  // Aggregate per product
+  const productData = {}
+  for (const item of items) {
+    const pid = item.product_id
+    if (!pid) continue
+    if (!productData[pid]) {
+      productData[pid] = { qty_sold: 0, revenue: 0, cogs: 0 }
+    }
+    const cost = (item.cost_price && item.cost_price > 0)
+      ? item.cost_price
+      : (pMap.get(pid)?.cost_price ?? 0)
+    productData[pid].qty_sold += item.quantity
+    productData[pid].revenue += item.quantity * (item.unit_price ?? 0)
+    productData[pid].cogs += item.quantity * cost
+  }
+
+  const rows = Object.entries(productData)
+    .map(([pid, d]) => {
+      const product = pMap.get(pid)
+      const gross_profit = d.revenue - d.cogs
+      return {
+        product_id: pid,
+        name: product?.name ?? pid,
+        sku: product?.sku ?? null,
+        category: product?.category ?? null,
+        qty_sold: d.qty_sold,
+        revenue: d.revenue,
+        cogs: d.cogs,
+        gross_profit,
+        margin: d.revenue > 0 ? (gross_profit / d.revenue) * 100 : null,
+      }
+    })
+    .sort((a, b) => b.revenue - a.revenue)
+
+  const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0)
+  const totalCogs = rows.reduce((s, r) => s + r.cogs, 0)
+  const totalProfit = totalRevenue - totalCogs
+
+  return { rows, totalRevenue, totalCogs, totalProfit }
+}
+
+// ─── SALES BY CATEGORY ────────────────────────────────────────────────────────
+
+export async function computeSalesByCategory({ from, to }) {
+  const { rows: productRows, totalRevenue, totalProfit } = await computeSalesByProduct({ from, to })
+
+  // Group product rows into categories
+  const categoryData = {}
+  for (const row of productRows) {
+    const cat = row.category || 'Uncategorised'
+    if (!categoryData[cat]) {
+      categoryData[cat] = { revenue: 0, cogs: 0, qty_sold: 0, product_count: 0 }
+    }
+    categoryData[cat].revenue += row.revenue
+    categoryData[cat].cogs += row.cogs
+    categoryData[cat].qty_sold += row.qty_sold
+    categoryData[cat].product_count += 1
+  }
+
+  const rows = Object.entries(categoryData)
+    .map(([category, d]) => ({
+      category,
+      revenue: d.revenue,
+      cogs: d.cogs,
+      gross_profit: d.revenue - d.cogs,
+      qty_sold: d.qty_sold,
+      product_count: d.product_count,
+    }))
+    .sort((a, b) => b.revenue - a.revenue)
+
+  return { rows, totalRevenue, totalProfit }
 }

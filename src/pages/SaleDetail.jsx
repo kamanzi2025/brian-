@@ -1,7 +1,11 @@
-import { useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
+import { voidSale } from '../db/operations'
 import { Layout } from '../components/Layout'
+import { VoidModal } from '../components/VoidModal'
+import { InvoicePrint } from '../components/InvoicePrint'
 import { fmt } from '../utils/format'
 
 const METHOD_LABELS = {
@@ -13,6 +17,10 @@ const METHOD_LABELS = {
 
 export function SaleDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
+
+  const [showVoidModal, setShowVoidModal] = useState(false)
+  const [showPrint, setShowPrint] = useState(false)
 
   const sale = useLiveQuery(() => db.sales.get(id), [id])
   const saleItems = useLiveQuery(
@@ -23,7 +31,7 @@ export function SaleDetail() {
   const customers = useLiveQuery(() => db.customers.toArray(), [])
 
   const productMap = Object.fromEntries((products ?? []).map((p) => [p.id, p]))
-  const customerMap = Object.fromEntries((customers ?? []).map((c) => [c.id, c.name]))
+  const customerMap = Object.fromEntries((customers ?? []).map((c) => [c.id, c]))
 
   if (!sale || !saleItems || !products || !customers) {
     return (
@@ -33,19 +41,45 @@ export function SaleDetail() {
     )
   }
 
-  const customerName = sale.customer_id && customerMap[sale.customer_id]
-    ? customerMap[sale.customer_id]
-    : 'Walk-in customer'
+  const customer = sale.customer_id ? customerMap[sale.customer_id] : null
+  const customerName = customer?.name ?? 'Walk-in customer'
 
-  const subtotal = sale.subtotal ?? saleItems.reduce((s, i) => s + i.subtotal, 0)
+  const subtotal = sale.subtotal ?? saleItems.reduce((s, i) => s + (i.subtotal ?? 0), 0)
   const vatAmount = sale.vat_amount ?? 0
   const total = sale.total ?? subtotal + vatAmount
+
+  // Build items for InvoicePrint
+  const invoiceItems = saleItems.map((item) => ({
+    product_name: productMap[item.product_id]?.name ?? 'Unknown product',
+    quantity: item.quantity,
+    unit_price: item.unit_price,
+    subtotal: item.subtotal ?? item.quantity * item.unit_price,
+  }))
+
+  async function handleVoid(saleId, reason) {
+    await voidSale(saleId, reason)
+    setShowVoidModal(false)
+    navigate('/sales')
+  }
 
   return (
     <Layout title="Sale Detail" showBack>
       <div className="space-y-4 pb-4">
 
-        {/* ── Header info ─────────────────────────────── */}
+        {/* Voided banner */}
+        {sale.voided ? (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-center">
+            <p className="text-red-700 font-bold tracking-widest text-sm">VOIDED</p>
+            {sale.void_reason && (
+              <p className="text-red-600 text-xs mt-0.5">Reason: {sale.void_reason}</p>
+            )}
+            {sale.voided_at && (
+              <p className="text-red-400 text-xs">{sale.voided_at.slice(0, 10)}</p>
+            )}
+          </div>
+        ) : null}
+
+        {/* Header info */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Customer</span>
@@ -57,17 +91,24 @@ export function SaleDetail() {
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Payment</span>
-            <span className="text-gray-700">{METHOD_LABELS[sale.payment_method] ?? sale.payment_method}</span>
+            <span className="text-gray-700">
+              {METHOD_LABELS[sale.payment_method] ?? sale.payment_method}
+            </span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Status</span>
-            <span className={`font-semibold ${sale.status === 'completed' ? 'text-green-600' : 'text-yellow-600'}`}>
-              {sale.status}
+            <span
+              className={`font-semibold ${
+                sale.voided ? 'text-red-600' : sale.status === 'completed' ? 'text-green-600' : 'text-yellow-600'
+              }`}
+            >
+              {sale.voided ? 'Voided' : sale.status}
             </span>
           </div>
+          <p className="text-xs text-gray-400 font-mono pt-1">{sale.id}</p>
         </section>
 
-        {/* ── Line items ──────────────────────────────── */}
+        {/* Line items */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-4 pt-4 pb-2">
             Items Sold
@@ -91,7 +132,9 @@ export function SaleDetail() {
                         {item.quantity} × {fmt(item.unit_price)}
                       </p>
                     </div>
-                    <p className="font-bold text-gray-800 shrink-0">{fmt(item.subtotal)}</p>
+                    <p className="font-bold text-gray-800 shrink-0">
+                      {fmt(item.subtotal ?? item.quantity * item.unit_price)}
+                    </p>
                   </div>
                 </div>
               )
@@ -99,7 +142,7 @@ export function SaleDetail() {
           )}
         </section>
 
-        {/* ── Totals ──────────────────────────────────── */}
+        {/* Totals */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-2">
           <div className="flex justify-between text-sm text-gray-500">
             <span>Subtotal</span>
@@ -115,7 +158,43 @@ export function SaleDetail() {
           </div>
         </section>
 
+        {/* Action buttons */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setShowPrint(true)}
+            className="flex items-center justify-center gap-2 border border-blue-300 text-blue-700 font-semibold rounded-xl py-3 text-sm hover:bg-blue-50"
+          >
+            Print / Share
+          </button>
+
+          {!sale.voided && (
+            <button
+              onClick={() => setShowVoidModal(true)}
+              className="flex items-center justify-center gap-2 border border-red-300 text-red-600 font-semibold rounded-xl py-3 text-sm hover:bg-red-50"
+            >
+              Void Sale
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Modals */}
+      {showVoidModal && (
+        <VoidModal
+          saleId={id}
+          onConfirm={handleVoid}
+          onClose={() => setShowVoidModal(false)}
+        />
+      )}
+
+      {showPrint && (
+        <InvoicePrint
+          sale={{ ...sale, subtotal, vat_amount: vatAmount, total }}
+          items={invoiceItems}
+          customer={customer}
+          onClose={() => setShowPrint(false)}
+        />
+      )}
     </Layout>
   )
 }

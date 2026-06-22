@@ -41,12 +41,16 @@ const SYNCED_TABLES = [
   'customers',
   'suppliers',
   'sales',
+  'purchases',
   'expenses',
   'payments',
+  'quotations',
+  'returns',
+  'stock_movements',
 ]
 
-// Child tables that need to be pushed alongside their parent (sale or purchase)
-const CHILD_TABLES = ['sale_items', 'purchase_items']
+// Child tables that need to be pushed alongside their parent
+const CHILD_TABLES = ['sale_items', 'purchase_items', 'quotation_items', 'return_items']
 
 const LAST_SYNCED_KEY = 'autoparts_lastSyncedAt'
 
@@ -101,6 +105,8 @@ async function pushAll() {
   // Push children after parents so foreign key constraints are satisfied
   await pushChildTable('sale_items', 'sale_id')
   await pushChildTable('purchase_items', 'purchase_id')
+  await pushChildTable('quotation_items', 'quotation_id')
+  await pushChildTable('return_items', 'return_id')
 }
 
 // ─── PULL ────────────────────────────────────────────────────────────────────
@@ -146,6 +152,8 @@ async function pullAll(since) {
   }
   await pullChildTable('sale_items', since)
   await pullChildTable('purchase_items', since)
+  await pullChildTable('quotation_items', since)
+  await pullChildTable('return_items', since)
 }
 
 // ─── PUBLIC API ───────────────────────────────────────────────────────────────

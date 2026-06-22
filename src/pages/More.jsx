@@ -2,7 +2,6 @@ import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { Layout } from '../components/Layout'
-import { fmt } from '../utils/format'
 
 function ActionCard({ emoji, label, description, onClick }) {
   return (
@@ -53,6 +52,66 @@ export function More() {
           </div>
         </section>
 
+        {/* Transactions */}
+        <section>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+            Transactions
+          </p>
+          <div className="space-y-2">
+            <ActionCard
+              emoji="🧾"
+              label="Sales History"
+              description="Browse all sales with filters and date range"
+              onClick={() => navigate('/sales')}
+            />
+            <ActionCard
+              emoji="🚚"
+              label="Purchase History"
+              description="View purchases by date, status, and supplier"
+              onClick={() => navigate('/purchases')}
+            />
+            <ActionCard
+              emoji="💸"
+              label="Expense History"
+              description="View all expenses by category and date"
+              onClick={() => navigate('/expenses')}
+            />
+            <ActionCard
+              emoji="💳"
+              label="Payment History"
+              description="All incoming and outgoing payments"
+              onClick={() => navigate('/payments')}
+            />
+            <ActionCard
+              emoji="📋"
+              label="Quotations"
+              description="Create and convert price quotes"
+              onClick={() => navigate('/quotations')}
+            />
+            <ActionCard
+              emoji="↩️"
+              label="Returns"
+              description="Process customer returns and restock items"
+              onClick={() => navigate('/returns')}
+            />
+          </div>
+        </section>
+
+        {/* Stock */}
+        <section>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+            Stock
+          </p>
+          <div className="space-y-2">
+            <ActionCard
+              emoji="🔄"
+              label="Stock Transfer"
+              description="Move stock from warehouse to store"
+              onClick={() => navigate('/stock/transfer')}
+            />
+          </div>
+        </section>
+
         {/* Reports */}
         <section>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
@@ -61,7 +120,7 @@ export function More() {
           <ActionCard
             emoji="📊"
             label="Financial Reports"
-            description="P&L, Balance Sheet, Cash Flow, Inventory, AR/AP Aging"
+            description="P&L, Balance Sheet, Cash Flow, Inventory, AR/AP Aging, By Part, By Category"
             onClick={() => navigate('/reports')}
           />
         </section>

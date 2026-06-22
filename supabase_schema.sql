@@ -221,3 +221,173 @@ CREATE INDEX ON purchase_items (purchase_id);
 CREATE INDEX ON purchase_items (product_id);
 CREATE INDEX ON payments    (related_sale_id);
 CREATE INDEX ON payments    (related_purchase_id);
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- v3 ADDITIONS — run these after the initial schema above
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- ─── ALTER EXISTING TABLES ───────────────────────────────────────────────────
+
+-- sales: VAT breakdown, void support, quote reference
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS subtotal      NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS vat_amount    NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS voided        BOOLEAN        NOT NULL DEFAULT FALSE;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS void_reason   TEXT;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS voided_at     TIMESTAMPTZ;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS quote_id      UUID;
+
+-- Backfill: set subtotal = total for rows created before this migration
+UPDATE sales SET subtotal = total WHERE subtotal = 0 AND total > 0;
+
+-- sale_items: cost at time of sale for accurate COGS
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS cost_price NUMERIC(12, 2) NOT NULL DEFAULT 0;
+
+-- products: extended catalogue fields
+ALTER TABLE products ADD COLUMN IF NOT EXISTS oem_number       TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS wholesale_price  NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS warranty_months  INTEGER        NOT NULL DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS active           BOOLEAN        NOT NULL DEFAULT TRUE;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode          TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS vehicle_makes    TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS vehicle_models   TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS year_from        INTEGER;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS year_to          INTEGER;
+
+-- Backfill: set wholesale_price = selling_price for existing products
+UPDATE products SET wholesale_price = selling_price WHERE wholesale_price = 0;
+
+-- suppliers: extended profile
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS email          TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS address        TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment_terms  TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS notes          TEXT;
+
+
+-- ─── NEW TABLE: QUOTATIONS ────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS quotations (
+  id                UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  date              DATE          NOT NULL DEFAULT CURRENT_DATE,
+  expiry_date       DATE,
+  customer_id       UUID          REFERENCES customers(id) ON DELETE SET NULL,
+  status            TEXT          NOT NULL DEFAULT 'draft',  -- draft | sent | converted | expired
+  subtotal          NUMERIC(12,2) NOT NULL DEFAULT 0,
+  vat_amount        NUMERIC(12,2) NOT NULL DEFAULT 0,
+  total             NUMERIC(12,2) NOT NULL DEFAULT 0,
+  notes             TEXT,
+  converted_sale_id UUID,
+  updated_at        TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  synced            BOOLEAN       NOT NULL DEFAULT TRUE
+);
+
+CREATE TRIGGER quotations_updated_at
+  BEFORE UPDATE ON quotations
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+ALTER TABLE quotations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "owner full access" ON quotations
+  FOR ALL USING (auth.role() = 'authenticated');
+
+
+-- ─── NEW TABLE: QUOTATION ITEMS ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS quotation_items (
+  id            UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  quotation_id  UUID          NOT NULL REFERENCES quotations(id) ON DELETE CASCADE,
+  product_id    UUID          REFERENCES products(id) ON DELETE SET NULL,
+  quantity      INTEGER       NOT NULL DEFAULT 1,
+  unit_price    NUMERIC(12,2) NOT NULL DEFAULT 0,
+  cost_price    NUMERIC(12,2) NOT NULL DEFAULT 0,
+  subtotal      NUMERIC(12,2) NOT NULL DEFAULT 0
+);
+
+ALTER TABLE quotation_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "owner full access" ON quotation_items
+  FOR ALL USING (auth.role() = 'authenticated');
+
+
+-- ─── NEW TABLE: RETURNS ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS returns (
+  id               UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  original_sale_id UUID          REFERENCES sales(id) ON DELETE SET NULL,
+  date             DATE          NOT NULL DEFAULT CURRENT_DATE,
+  reason           TEXT          NOT NULL,
+  status           TEXT          NOT NULL DEFAULT 'completed',
+  subtotal         NUMERIC(12,2) NOT NULL DEFAULT 0,
+  vat_amount       NUMERIC(12,2) NOT NULL DEFAULT 0,
+  total            NUMERIC(12,2) NOT NULL DEFAULT 0,
+  updated_at       TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  synced           BOOLEAN       NOT NULL DEFAULT TRUE
+);
+
+CREATE TRIGGER returns_updated_at
+  BEFORE UPDATE ON returns
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+ALTER TABLE returns ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "owner full access" ON returns
+  FOR ALL USING (auth.role() = 'authenticated');
+
+
+-- ─── NEW TABLE: RETURN ITEMS ──────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS return_items (
+  id          UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  return_id   UUID          NOT NULL REFERENCES returns(id) ON DELETE CASCADE,
+  product_id  UUID          REFERENCES products(id) ON DELETE SET NULL,
+  quantity    INTEGER       NOT NULL DEFAULT 1,
+  unit_price  NUMERIC(12,2) NOT NULL DEFAULT 0,
+  cost_price  NUMERIC(12,2) NOT NULL DEFAULT 0,
+  subtotal    NUMERIC(12,2) NOT NULL DEFAULT 0
+);
+
+ALTER TABLE return_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "owner full access" ON return_items
+  FOR ALL USING (auth.role() = 'authenticated');
+
+
+-- ─── NEW TABLE: STOCK MOVEMENTS ───────────────────────────────────────────────
+-- Immutable audit log — one row per stock change event.
+-- movement_type: sale | purchase | return | transfer_in | transfer_out |
+--                void_reversal | adjustment
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id             UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id     UUID          REFERENCES products(id) ON DELETE SET NULL,
+  movement_type  TEXT          NOT NULL,
+  qty_change     INTEGER       NOT NULL,   -- positive = stock in, negative = stock out
+  qty_before     INTEGER       NOT NULL DEFAULT 0,
+  qty_after      INTEGER       NOT NULL DEFAULT 0,
+  location       TEXT,                    -- 'store' | 'warehouse'
+  reference_id   UUID,
+  reference_type TEXT,
+  note           TEXT,
+  created_at     TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  synced         BOOLEAN       NOT NULL DEFAULT TRUE
+);
+
+-- updated_at = created_at for movements (append-only, never updated)
+CREATE TRIGGER stock_movements_updated_at
+  BEFORE UPDATE ON stock_movements
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+ALTER TABLE stock_movements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "owner full access" ON stock_movements
+  FOR ALL USING (auth.role() = 'authenticated');
+
+
+-- ─── NEW INDEXES ──────────────────────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_quotations_updated_at   ON quotations    (updated_at);
+CREATE INDEX IF NOT EXISTS idx_quotations_customer     ON quotations    (customer_id);
+CREATE INDEX IF NOT EXISTS idx_quotations_status       ON quotations    (status);
+CREATE INDEX IF NOT EXISTS idx_quotation_items_qid     ON quotation_items (quotation_id);
+CREATE INDEX IF NOT EXISTS idx_quotation_items_pid     ON quotation_items (product_id);
+CREATE INDEX IF NOT EXISTS idx_returns_updated_at      ON returns       (updated_at);
+CREATE INDEX IF NOT EXISTS idx_returns_sale            ON returns       (original_sale_id);
+CREATE INDEX IF NOT EXISTS idx_return_items_rid        ON return_items  (return_id);
+CREATE INDEX IF NOT EXISTS idx_return_items_pid        ON return_items  (product_id);
+CREATE INDEX IF NOT EXISTS idx_stock_mov_product       ON stock_movements (product_id);
+CREATE INDEX IF NOT EXISTS idx_stock_mov_created       ON stock_movements (created_at);
+CREATE INDEX IF NOT EXISTS idx_stock_mov_updated       ON stock_movements (updated_at);
+CREATE INDEX IF NOT EXISTS idx_stock_mov_reference     ON stock_movements (reference_id);
+CREATE INDEX IF NOT EXISTS idx_sales_voided            ON sales         (voided);
+CREATE INDEX IF NOT EXISTS idx_products_active         ON products      (active);
+CREATE INDEX IF NOT EXISTS idx_products_oem            ON products      (oem_number);

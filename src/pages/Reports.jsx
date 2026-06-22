@@ -8,6 +8,8 @@ import { CashFlow } from './report-tabs/CashFlow'
 import { InventoryReport } from './report-tabs/InventoryReport'
 import { ARAging } from './report-tabs/ARAging'
 import { APAging } from './report-tabs/APAging'
+import { SalesByProduct } from './report-tabs/SalesByProduct'
+import { SalesByCategory } from './report-tabs/SalesByCategory'
 
 const TABS = [
   { key: 'pl', label: 'P & L', usesDate: true },
@@ -16,6 +18,8 @@ const TABS = [
   { key: 'inventory', label: 'Inventory', usesDate: false },
   { key: 'ar', label: 'AR Aging', usesDate: false },
   { key: 'ap', label: 'AP Aging', usesDate: false },
+  { key: 'bypart', label: 'By Part', usesDate: true },
+  { key: 'bycat', label: 'By Category', usesDate: true },
 ]
 
 export function Reports() {
@@ -105,6 +109,8 @@ export function Reports() {
       {tab === 'inventory' && <InventoryReport />}
       {tab === 'ar' && <ARAging />}
       {tab === 'ap' && <APAging />}
+      {tab === 'bypart' && <SalesByProduct from={from} to={to} />}
+      {tab === 'bycat' && <SalesByCategory from={from} to={to} />}
     </Layout>
   )
 }
