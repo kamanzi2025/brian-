@@ -123,7 +123,7 @@ export function Home() {
           {[
             { label: 'Products', value: productCount ?? '…', path: '/products' },
             { label: 'Customers', value: customerCount ?? '…', path: '/customers' },
-            { label: 'Sales', value: saleCount ?? '…', path: null },
+            { label: 'Sales', value: saleCount ?? '…', path: '/sales' },
           ].map(({ label, value, path }) => (
             <button
               key={label}

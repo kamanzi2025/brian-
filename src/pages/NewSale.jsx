@@ -57,7 +57,9 @@ export function NewSale() {
   const allProducts = useLiveQuery(() => db.products.orderBy('name').toArray(), [])
   const allCustomers = useLiveQuery(() => db.customers.orderBy('name').toArray(), [])
 
-  const total = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
+  const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
+  const vatAmount = subtotal * 0.18
+  const total = subtotal + vatAmount
 
   function addProduct(product) {
     setItems((prev) => {
@@ -100,6 +102,8 @@ export function NewSale() {
         customer_id: customer?.id ?? null,
         payment_method: paymentMethod,
         status: 'completed',
+        subtotal,
+        vat_amount: vatAmount,
         total,
         updated_at: now,
         synced: 0,
@@ -222,12 +226,19 @@ export function NewSale() {
         </section>
 
         {/* ── Total & save ──────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500">Total</p>
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-2">
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <span>Subtotal ({items.length} item{items.length !== 1 ? 's' : ''})</span>
+            <span>{fmt(subtotal)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <span>VAT (18%)</span>
+            <span>{fmt(vatAmount)}</span>
+          </div>
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+            <p className="font-bold text-gray-800">Total</p>
             <p className="text-2xl font-bold text-gray-800">{fmt(total)}</p>
           </div>
-          <p className="text-sm text-gray-400">{items.length} item{items.length !== 1 ? 's' : ''}</p>
         </div>
 
         {error && (

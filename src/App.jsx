@@ -5,6 +5,8 @@ import { Home } from './pages/Home'
 import { Products } from './pages/Products'
 import { ProductForm } from './pages/ProductForm'
 import { NewSale } from './pages/NewSale'
+import { SalesList } from './pages/SalesList'
+import { SaleDetail } from './pages/SaleDetail'
 import { NewPurchase } from './pages/NewPurchase'
 import { AddExpense } from './pages/AddExpense'
 import { RecordPayment } from './pages/RecordPayment'
@@ -20,6 +22,8 @@ function AuthenticatedRoutes() {
       <Route path="/products" element={<Products />} />
       <Route path="/products/new" element={<ProductForm />} />
       <Route path="/products/:id/edit" element={<ProductForm />} />
+      <Route path="/sales" element={<SalesList />} />
+      <Route path="/sales/:id" element={<SaleDetail />} />
       <Route path="/sales/new" element={<NewSale />} />
       <Route path="/purchases/new" element={<NewPurchase />} />
       <Route path="/expenses/new" element={<AddExpense />} />

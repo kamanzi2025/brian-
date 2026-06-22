@@ -27,7 +27,10 @@ export async function saveSale({ sale, items }) {
           .where('id')
           .equals(item.product_id)
           .modify((p) => {
-            p.qty_store = Math.max(0, (p.qty_store || 0) - item.quantity)
+            const fromStore = Math.min(p.qty_store || 0, item.quantity)
+            const fromWarehouse = Math.min(p.qty_warehouse || 0, item.quantity - fromStore)
+            p.qty_store = (p.qty_store || 0) - fromStore
+            p.qty_warehouse = (p.qty_warehouse || 0) - fromWarehouse
             p.updated_at = nowIso()
             p.synced = 0
           })
