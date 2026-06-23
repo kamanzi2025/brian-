@@ -318,6 +318,8 @@ export async function computeInventory() {
 
   const rows = products.map((p) => {
     const cost = p.cost_price ?? 0
+    const retail = p.selling_price ?? 0
+    const wholesale = p.wholesale_price ?? 0
     const qtyStore = p.qty_store ?? 0
     const qtyWarehouse = p.qty_warehouse ?? 0
     const qtyTotal = qtyStore + qtyWarehouse
@@ -327,6 +329,8 @@ export async function computeInventory() {
       storeValue: qtyStore * cost,
       warehouseValue: qtyWarehouse * cost,
       stockValue: qtyTotal * cost,
+      retailValue: qtyTotal * retail,
+      wholesaleValue: qtyTotal * wholesale,
       lastSoldDate: lastSoldMap[p.id] ?? null,
       isSlowMover: !recentProductIds.has(p.id),
       isOutOfStock: qtyTotal === 0,
@@ -338,6 +342,8 @@ export async function computeInventory() {
   return {
     rows,
     totalValue: rows.reduce((s, p) => s + p.stockValue, 0),
+    totalRetailValue: rows.reduce((s, p) => s + p.retailValue, 0),
+    totalWholesaleValue: rows.reduce((s, p) => s + p.wholesaleValue, 0),
     totalStoreValue: rows.reduce((s, p) => s + p.storeValue, 0),
     totalWarehouseValue: rows.reduce((s, p) => s + p.warehouseValue, 0),
     totalProducts: products.length,

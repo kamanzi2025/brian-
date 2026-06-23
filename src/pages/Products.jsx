@@ -117,44 +117,72 @@ export function Products() {
             {query ? 'No products match your search.' : 'No products yet. Tap Add to create one.'}
           </p>
         ) : (
-          visible.map((product) => (
-            <button
-              key={product.id}
-              onClick={() => navigate(`/products/${product.id}/edit`)}
-              className="w-full text-left bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md active:bg-gray-50 transition-shadow"
-            >
-              {/* Top row: name + price */}
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <div className="min-w-0">
-                  <p className="font-semibold text-gray-800 truncate">{product.name}</p>
-                  {product.sku && (
-                    <p className="text-xs text-gray-400 mt-0.5">SKU: {product.sku}</p>
-                  )}
-                  {product.category && (
-                    <p className="text-xs text-gray-400">{product.category}</p>
-                  )}
+          visible.map((product) => {
+            const qtyTotal = totalQty(product)
+            const costVal = qtyTotal * (product.cost_price ?? 0)
+            const retailVal = qtyTotal * (product.selling_price ?? 0)
+            return (
+              <button
+                key={product.id}
+                onClick={() => navigate(`/products/${product.id}/edit`)}
+                className="w-full text-left bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md active:bg-gray-50 transition-shadow"
+              >
+                {/* Name + status badge */}
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-800 truncate">{product.name}</p>
+                    {product.sku && <p className="text-xs text-gray-400 mt-0.5">SKU: {product.sku}</p>}
+                    {product.category && <p className="text-xs text-gray-400">{product.category}</p>}
+                  </div>
+                  <div className="shrink-0">{stockBadge(product)}</div>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="font-bold text-gray-800">{fmt(product.selling_price)}</p>
-                  <div className="mt-1">{stockBadge(product)}</div>
-                </div>
-              </div>
 
-              {/* Stock location row */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-blue-50 rounded-lg px-3 py-2">
-                  <p className="text-xs font-medium text-blue-500 uppercase tracking-wide">Store</p>
-                  <p className="text-lg font-bold text-blue-700 leading-tight">{product.qty_store ?? 0}</p>
-                  <p className="text-xs text-blue-400">units</p>
+                {/* 3 price points */}
+                <div className="grid grid-cols-3 gap-1.5 mb-2">
+                  <div className="bg-gray-50 rounded-lg px-2 py-1.5">
+                    <p className="text-xs text-gray-400">Cost</p>
+                    <p className="text-sm font-bold text-gray-700">{fmt(product.cost_price ?? 0)}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg px-2 py-1.5">
+                    <p className="text-xs text-gray-400">Wholesale</p>
+                    <p className="text-sm font-bold text-gray-700">{fmt(product.wholesale_price ?? 0)}</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg px-2 py-1.5">
+                    <p className="text-xs text-blue-500">Retail</p>
+                    <p className="text-sm font-bold text-blue-700">{fmt(product.selling_price ?? 0)}</p>
+                  </div>
                 </div>
-                <div className="bg-amber-50 rounded-lg px-3 py-2">
-                  <p className="text-xs font-medium text-amber-500 uppercase tracking-wide">Warehouse</p>
-                  <p className="text-lg font-bold text-amber-700 leading-tight">{product.qty_warehouse ?? 0}</p>
-                  <p className="text-xs text-amber-400">units</p>
+
+                {/* Store / Warehouse units */}
+                <div className="grid grid-cols-2 gap-1.5 mb-2">
+                  <div className="bg-blue-50 rounded-lg px-3 py-2">
+                    <p className="text-xs font-medium text-blue-500 uppercase tracking-wide">Store</p>
+                    <p className="text-lg font-bold text-blue-700 leading-tight">{product.qty_store ?? 0}</p>
+                    <p className="text-xs text-blue-400">units</p>
+                  </div>
+                  <div className="bg-amber-50 rounded-lg px-3 py-2">
+                    <p className="text-xs font-medium text-amber-500 uppercase tracking-wide">Warehouse</p>
+                    <p className="text-lg font-bold text-amber-700 leading-tight">{product.qty_warehouse ?? 0}</p>
+                    <p className="text-xs text-amber-400">units</p>
+                  </div>
                 </div>
-              </div>
-            </button>
-          ))
+
+                {/* Cost value vs retail value */}
+                {qtyTotal > 0 && (
+                  <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-gray-100">
+                    <div>
+                      <p className="text-xs text-gray-400">Cost value</p>
+                      <p className="text-sm font-semibold text-gray-700">{fmt(costVal)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-400">Retail value</p>
+                      <p className="text-sm font-semibold text-green-700">{fmt(retailVal)}</p>
+                    </div>
+                  </div>
+                )}
+              </button>
+            )
+          })
         )}
       </div>
     </Layout>

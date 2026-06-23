@@ -20,50 +20,62 @@ export function InventoryReport() {
   if (!data) {
     return (
       <div className="space-y-3 animate-pulse">
-        <div className="grid grid-cols-3 gap-2">
-          {[1, 2, 3].map((i) => <div key={i} className="h-16 bg-gray-100 rounded-xl" />)}
-        </div>
-        {[1, 2, 3].map((i) => <div key={i} className="h-20 bg-gray-100 rounded-xl" />)}
+        {[1, 2, 3, 4].map((i) => <div key={i} className="h-16 bg-gray-100 rounded-xl" />)}
       </div>
     )
   }
 
   let rows = data.rows
-
   if (filter === 'low') rows = rows.filter((p) => p.isLowStock && !p.isOutOfStock)
   if (filter === 'out') rows = rows.filter((p) => p.isOutOfStock)
   if (filter === 'slow') rows = rows.filter((p) => p.isSlowMover)
-
   if (sortBy === 'value') rows = [...rows].sort((a, b) => b.stockValue - a.stockValue)
+  if (sortBy === 'retail') rows = [...rows].sort((a, b) => b.retailValue - a.retailValue)
   if (sortBy === 'qty') rows = [...rows].sort((a, b) => b.qty_total - a.qty_total)
   if (sortBy === 'name') rows = [...rows].sort((a, b) => a.name.localeCompare(b.name))
+
+  const filteredCostValue = rows.reduce((s, p) => s + p.stockValue, 0)
+  const filteredRetailValue = rows.reduce((s, p) => s + p.retailValue, 0)
+  const filteredUnits = rows.reduce((s, p) => s + p.qty_total, 0)
 
   return (
     <div className="space-y-4">
 
-      {/* ── Value summary cards ───────────────────────── */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="bg-blue-50 rounded-xl p-3 col-span-3">
-          <p className="text-xs font-medium text-blue-600">Total Inventory Value</p>
-          <p className="text-xl font-bold text-blue-700 tabular-nums mt-0.5">{fmt(data.totalValue)}</p>
-          <p className="text-xs text-blue-500 mt-0.5">{data.totalProducts} products</p>
+      {/* ── Top summary: 3 valuation cards ─────────────── */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+            <p className="text-xs font-medium text-gray-500">Cost Value</p>
+            <p className="text-base font-bold text-gray-800 tabular-nums mt-0.5 leading-tight">{fmt(data.totalValue)}</p>
+            <p className="text-xs text-gray-400 mt-0.5">what you paid</p>
+          </div>
+          <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+            <p className="text-xs font-medium text-blue-600">Wholesale</p>
+            <p className="text-base font-bold text-blue-700 tabular-nums mt-0.5 leading-tight">{fmt(data.totalWholesaleValue)}</p>
+            <p className="text-xs text-blue-400 mt-0.5">at wholesale</p>
+          </div>
+          <div className="bg-green-50 rounded-xl p-3 border border-green-100">
+            <p className="text-xs font-medium text-green-600">Retail Value</p>
+            <p className="text-base font-bold text-green-700 tabular-nums mt-0.5 leading-tight">{fmt(data.totalRetailValue)}</p>
+            <p className="text-xs text-green-400 mt-0.5">if sold retail</p>
+          </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
-          <p className="text-xs font-medium text-gray-500">Store Value</p>
-          <p className="text-sm font-bold text-gray-800 tabular-nums mt-0.5">{fmt(data.totalStoreValue)}</p>
+
+        {/* Store / Warehouse split */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-blue-50 rounded-xl px-4 py-2.5 flex items-center justify-between border border-blue-100">
+            <p className="text-xs font-semibold text-blue-500 uppercase">Store</p>
+            <p className="text-sm font-bold text-blue-700">{fmt(data.totalStoreValue)}</p>
+          </div>
+          <div className="bg-amber-50 rounded-xl px-4 py-2.5 flex items-center justify-between border border-amber-100">
+            <p className="text-xs font-semibold text-amber-500 uppercase">Warehouse</p>
+            <p className="text-sm font-bold text-amber-700">{fmt(data.totalWarehouseValue)}</p>
+          </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
-          <p className="text-xs font-medium text-gray-500">Warehouse</p>
-          <p className="text-sm font-bold text-gray-800 tabular-nums mt-0.5">{fmt(data.totalWarehouseValue)}</p>
-        </div>
-        <div className={`rounded-xl p-3 ${data.outOfStock > 0 || data.lowStock > 0 ? 'bg-yellow-50' : 'bg-gray-50'}`}>
-          <p className={`text-xs font-medium ${data.outOfStock > 0 ? 'text-red-600' : data.lowStock > 0 ? 'text-yellow-600' : 'text-gray-500'}`}>
-            Alerts
-          </p>
-          <p className={`text-sm font-bold tabular-nums mt-0.5 ${data.outOfStock > 0 ? 'text-red-700' : 'text-yellow-700'}`}>
-            {data.outOfStock > 0 ? `${data.outOfStock} out` : `${data.lowStock} low`}
-          </p>
-        </div>
+
+        <p className="text-xs text-gray-400 text-center">
+          {data.totalProducts} products · {data.outOfStock} out of stock · {data.lowStock} low stock
+        </p>
       </div>
 
       {/* ── Filters & sort ─────────────────────────────── */}
@@ -87,21 +99,13 @@ export function InventoryReport() {
             onChange={(e) => setSortBy(e.target.value)}
             className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none"
           >
-            <option value="value">Sort: Value ↓</option>
+            <option value="value">Sort: Cost ↓</option>
+            <option value="retail">Sort: Retail ↓</option>
             <option value="qty">Sort: Qty ↓</option>
             <option value="name">Sort: Name</option>
           </select>
         </div>
       </div>
-
-      {/* ── Column header ──────────────────────────────── */}
-      {rows.length > 0 && (
-        <div className="grid grid-cols-4 gap-1 px-4 py-1.5 bg-gray-50 rounded-lg text-xs font-semibold text-gray-400 uppercase tracking-wide">
-          <span className="col-span-2">Product</span>
-          <span className="text-right">Units</span>
-          <span className="text-right">Value</span>
-        </div>
-      )}
 
       {/* ── Product rows ───────────────────────────────── */}
       {rows.length === 0 ? (
@@ -111,78 +115,97 @@ export function InventoryReport() {
           {rows.map((p, i) => (
             <div
               key={p.id}
-              className={`px-4 py-3 ${i > 0 ? 'border-t border-gray-100' : ''} ${p.isOutOfStock ? 'bg-red-50' : p.isLowStock ? 'bg-yellow-50' : ''}`}
+              className={`px-4 py-3 ${i > 0 ? 'border-t border-gray-100' : ''} ${
+                p.isOutOfStock ? 'bg-red-50' : p.isLowStock ? 'bg-yellow-50' : ''
+              }`}
             >
-              {/* Product name + badges */}
+              {/* Name + badges + total units */}
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <p className="font-semibold text-gray-800 text-sm truncate">{p.name}</p>
-                    {p.isOutOfStock && (
-                      <span className="text-xs px-1.5 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">Out</span>
-                    )}
-                    {!p.isOutOfStock && p.isLowStock && (
-                      <span className="text-xs px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded-full font-medium">Low</span>
-                    )}
-                    {p.isSlowMover && !p.isOutOfStock && (
-                      <span className="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full font-medium">Slow</span>
-                    )}
+                    {p.isOutOfStock && <span className="text-xs px-1.5 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">Out</span>}
+                    {!p.isOutOfStock && p.isLowStock && <span className="text-xs px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded-full font-medium">Low</span>}
+                    {p.isSlowMover && !p.isOutOfStock && <span className="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full font-medium">Slow</span>}
                   </div>
-                  {p.sku && <p className="text-xs text-gray-400 mt-0.5">SKU: {p.sku}</p>}
-                  <p className="text-xs text-gray-400">
-                    Cost: <span className="font-medium text-gray-600">{fmt(p.cost_price ?? 0)}</span>/unit
-                    {p.category ? ` · ${p.category}` : ''}
-                  </p>
+                  {p.sku && <p className="text-xs text-gray-400 mt-0.5">SKU: {p.sku}{p.category ? ` · ${p.category}` : ''}</p>}
+                  <p className="text-xs text-gray-400">Last sold: {p.lastSoldDate ? displayDate(p.lastSoldDate) : 'Never'}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="font-bold text-gray-800 text-sm">{fmt(p.stockValue)}</p>
-                  <p className="text-xs text-gray-400">total value</p>
+                  <p className="text-xs text-gray-400">{p.qty_total} units total</p>
                 </div>
               </div>
 
-              {/* Store / Warehouse breakdown */}
-              <div className="grid grid-cols-2 gap-2 mt-1">
+              {/* 3 price points per unit */}
+              <div className="grid grid-cols-3 gap-1.5 mb-2">
+                <div className="bg-gray-50 rounded-lg px-2 py-1.5">
+                  <p className="text-xs text-gray-400">Cost/unit</p>
+                  <p className="text-sm font-bold text-gray-700">{fmt(p.cost_price ?? 0)}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg px-2 py-1.5">
+                  <p className="text-xs text-gray-400">Wholesale</p>
+                  <p className="text-sm font-bold text-gray-700">{fmt(p.wholesale_price ?? 0)}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg px-2 py-1.5">
+                  <p className="text-xs text-blue-500">Retail</p>
+                  <p className="text-sm font-bold text-blue-700">{fmt(p.selling_price ?? 0)}</p>
+                </div>
+              </div>
+
+              {/* Store / Warehouse units */}
+              <div className="grid grid-cols-2 gap-1.5 mb-2">
                 <div className="bg-blue-50 rounded-lg px-3 py-1.5">
                   <p className="text-xs text-blue-500 font-medium">Store</p>
                   <p className="text-sm font-bold text-blue-700">{p.qty_store ?? 0} units</p>
-                  <p className="text-xs text-blue-500">{fmt(p.storeValue)}</p>
+                  <p className="text-xs text-blue-400">{fmt(p.storeValue)} cost</p>
                 </div>
                 <div className="bg-amber-50 rounded-lg px-3 py-1.5">
                   <p className="text-xs text-amber-500 font-medium">Warehouse</p>
                   <p className="text-sm font-bold text-amber-700">{p.qty_warehouse ?? 0} units</p>
-                  <p className="text-xs text-amber-500">{fmt(p.warehouseValue)}</p>
+                  <p className="text-xs text-amber-400">{fmt(p.warehouseValue)} cost</p>
                 </div>
               </div>
 
-              <p className="text-xs text-gray-400 mt-1.5">
-                Last sold: {p.lastSoldDate ? displayDate(p.lastSoldDate) : 'Never'}
-              </p>
+              {/* Cost → Wholesale → Retail value totals */}
+              {p.qty_total > 0 && (
+                <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-gray-100">
+                  <div>
+                    <p className="text-xs text-gray-400">Cost value</p>
+                    <p className="text-xs font-semibold text-gray-700">{fmt(p.stockValue)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Wholesale val.</p>
+                    <p className="text-xs font-semibold text-gray-700">{fmt(p.wholesaleValue)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-blue-400">Retail value</p>
+                    <p className="text-xs font-semibold text-green-700">{fmt(p.retailValue)}</p>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      {/* ── Footer totals ──────────────────────────────── */}
+      {/* ── Filtered totals footer ─────────────────────── */}
       {rows.length > 0 && (
-        <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-1">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Showing {rows.length} product{rows.length !== 1 ? 's' : ''}</span>
-            <span className="font-semibold text-gray-700">
-              {rows.reduce((s, p) => s + p.qty_total, 0)} total units
-            </span>
-          </div>
-          <div className="flex justify-between text-sm border-t border-gray-200 pt-1">
-            <span className="text-gray-500">Filtered inventory value</span>
-            <span className="font-bold text-gray-800">
-              {fmt(rows.reduce((s, p) => s + p.stockValue, 0))}
-            </span>
+        <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-1.5">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {filter === 'all' ? 'Total' : 'Filtered'} — {rows.length} products · {filteredUnits} units
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <p className="text-xs text-gray-400">Cost value</p>
+              <p className="text-sm font-bold text-gray-700">{fmt(filteredCostValue)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-green-500">Retail value</p>
+              <p className="text-sm font-bold text-green-700">{fmt(filteredRetailValue)}</p>
+            </div>
           </div>
         </div>
       )}
-
-      <p className="text-xs text-gray-400 text-center pb-2">
-        Value = units × cost price. Slow mover = no sale in 60 days.
-      </p>
     </div>
   )
 }
