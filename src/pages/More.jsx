@@ -97,21 +97,6 @@ export function More() {
           </div>
         </section>
 
-        {/* Stock */}
-        <section>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Stock
-          </p>
-          <div className="space-y-2">
-            <ActionCard
-              emoji="🔄"
-              label="Stock Transfer"
-              description="Move stock from warehouse to store"
-              onClick={() => navigate('/stock/transfer')}
-            />
-          </div>
-        </section>
-
         {/* Reports */}
         <section>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">

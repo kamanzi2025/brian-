@@ -55,17 +55,25 @@ export function Products() {
     return list
   }, [allProducts, query, filter])
 
-  const addButton = (
-    <button
-      onClick={() => navigate('/products/new')}
-      className="flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-3 py-1.5 rounded-lg"
-    >
-      + Add
-    </button>
+  const headerActions = (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => navigate('/stock/transfer')}
+        className="flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-3 py-1.5 rounded-lg"
+      >
+        Transfer
+      </button>
+      <button
+        onClick={() => navigate('/products/new')}
+        className="flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-3 py-1.5 rounded-lg"
+      >
+        + Add
+      </button>
+    </div>
   )
 
   return (
-    <Layout title="Inventory" action={addButton}>
+    <Layout title="Inventory" action={headerActions}>
       <div className="space-y-3">
         {/* Search */}
         <input
@@ -75,8 +83,8 @@ export function Products() {
           className="w-full border border-gray-300 bg-white rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
-        {/* Filter tabs */}
-        <div className="flex gap-2">
+        {/* Filter tabs + transfer shortcut */}
+        <div className="flex gap-2 items-center">
           {[
             { key: 'all', label: `All (${allProducts?.length ?? 0})` },
             { key: 'low', label: `Low / Out (${lowCount})` },
@@ -93,6 +101,12 @@ export function Products() {
               {label}
             </button>
           ))}
+          <button
+            onClick={() => navigate('/stock/transfer')}
+            className="ml-auto flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-sm font-semibold px-3 py-1.5 rounded-full whitespace-nowrap"
+          >
+            🔄 Transfer Stock
+          </button>
         </div>
 
         {/* List */}
