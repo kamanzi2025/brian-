@@ -57,6 +57,8 @@ export function NewSale() {
   const allProducts = useLiveQuery(() => db.products.orderBy('name').toArray(), [])
   const allCustomers = useLiveQuery(() => db.customers.orderBy('name').toArray(), [])
 
+  const hasStockError = items.some((i) => i.quantity > (i.product.qty_store ?? 0))
+
   const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
   const vatAmount = subtotal * 0.18
   const total = subtotal + vatAmount
@@ -165,26 +167,37 @@ export function NewSale() {
           {items.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-6">No items yet.</p>
           ) : (
-            items.map((item, idx) => (
-              <div key={idx} className="px-4 py-3 border-t border-gray-50">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gray-800 truncate">{item.product.name}</p>
-                    <p className="text-xs text-gray-400">{fmt(item.unit_price)} each</p>
+            items.map((item, idx) => {
+              const storeQty = item.product.qty_store ?? 0
+              const overStock = item.quantity > storeQty
+              return (
+                <div key={idx} className={`px-4 py-3 border-t border-gray-50 ${overStock ? 'bg-red-50' : ''}`}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-800 truncate">{item.product.name}</p>
+                      <p className="text-xs text-gray-400">{fmt(item.unit_price)} each</p>
+                    </div>
+                    <button
+                      onClick={() => removeItem(idx)}
+                      className="text-gray-300 hover:text-red-400 text-lg shrink-0 leading-none"
+                    >
+                      ×
+                    </button>
                   </div>
-                  <button
-                    onClick={() => removeItem(idx)}
-                    className="text-gray-300 hover:text-red-400 text-lg shrink-0 leading-none"
-                  >
-                    ×
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <QtyControl value={item.quantity} onChange={(qty) => updateQty(idx, qty)} />
+                    <p className="font-bold text-gray-800">{fmt(item.quantity * item.unit_price)}</p>
+                  </div>
+                  {overStock ? (
+                    <p className="text-xs text-red-600 mt-1 font-medium">
+                      Only {storeQty} in store — transfer from warehouse first
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-400 mt-1">{storeQty} in store</p>
+                  )}
                 </div>
-                <div className="flex items-center justify-between">
-                  <QtyControl value={item.quantity} onChange={(qty) => updateQty(idx, qty)} />
-                  <p className="font-bold text-gray-800">{fmt(item.quantity * item.unit_price)}</p>
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
 
           <div className="px-4 pb-4 pt-3 border-t border-gray-50">
@@ -250,13 +263,19 @@ export function NewSale() {
           </div>
         </div>
 
+        {hasStockError && (
+          <p className="text-red-600 bg-red-50 rounded-xl px-4 py-3 text-sm font-medium">
+            Some items exceed store stock. Go to More → Stock Transfer to move units from warehouse to store.
+          </p>
+        )}
+
         {error && (
           <p className="text-red-600 bg-red-50 rounded-xl px-4 py-3 text-sm">{error}</p>
         )}
 
         <button
           onClick={handleSave}
-          disabled={saving || items.length === 0}
+          disabled={saving || items.length === 0 || hasStockError}
           className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-bold rounded-xl py-4 text-base transition-colors"
         >
           {saving ? 'Saving…' : 'Confirm Sale'}

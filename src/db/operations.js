@@ -18,13 +18,11 @@ async function deductStockAndLog(productId, quantity, referenceId, referenceType
   const ts = nowIso()
 
   await db.products.where('id').equals(productId).modify((p) => {
-    const fromStore = Math.min(p.qty_store || 0, quantity)
-    const fromWarehouse = Math.min(p.qty_warehouse || 0, quantity - fromStore)
     const qtyBefore = (p.qty_store || 0) + (p.qty_warehouse || 0)
     const qtyAfter = qtyBefore - quantity
 
-    p.qty_store = (p.qty_store || 0) - fromStore
-    p.qty_warehouse = (p.qty_warehouse || 0) - fromWarehouse
+    // Sales always deduct from store. Transfer warehouse→store first if needed.
+    p.qty_store = (p.qty_store || 0) - quantity
     p.updated_at = ts
     p.synced = 0
 
@@ -35,7 +33,7 @@ async function deductStockAndLog(productId, quantity, referenceId, referenceType
       qty_change: -quantity,
       qty_before: qtyBefore,
       qty_after: qtyAfter,
-      location: fromStore > 0 ? 'store' : 'warehouse',
+      location: 'store',
       reference_id: referenceId,
       reference_type: referenceType,
       note: note ?? null,
@@ -93,6 +91,18 @@ async function addStockAndLog(productId, quantity, location, referenceId, refere
 // Creates sale + line items, decrements stock (store first then warehouse),
 // logs stock movements, and increases customer balance_owed on credit sales.
 export async function saveSale({ sale, items }) {
+  // Validate store stock before opening the transaction
+  for (const item of items) {
+    const product = await db.products.get(item.product_id)
+    if (!product) throw new Error('Product not found.')
+    if ((product.qty_store ?? 0) < item.quantity) {
+      throw new Error(
+        `Not enough store stock for "${product.name}". ` +
+        `Store has ${product.qty_store ?? 0} unit(s), sale needs ${item.quantity}.`
+      )
+    }
+  }
+
   await db.transaction(
     'rw',
     [db.sales, db.sale_items, db.products, db.customers, db.stock_movements],
@@ -289,6 +299,18 @@ export async function convertQuotationToSale(quotationId, { paymentMethod = 'cas
       ? await db.products.where('id').anyOf(productIds).toArray()
       : []
   const pMap = new Map(products.map((p) => [p.id, p]))
+
+  // Validate store stock before converting
+  for (const item of qItems) {
+    const product = pMap.get(item.product_id)
+    if (!product) throw new Error('Product not found.')
+    if ((product.qty_store ?? 0) < item.quantity) {
+      throw new Error(
+        `Not enough store stock for "${product.name}". ` +
+        `Store has ${product.qty_store ?? 0} unit(s), quote needs ${item.quantity}.`
+      )
+    }
+  }
 
   const saleId = newId()
   const ts = nowIso()
