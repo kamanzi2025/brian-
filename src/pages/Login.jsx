@@ -3,12 +3,20 @@ import { useAuth } from '../hooks/useAuth'
 
 export function Login() {
   const { signIn, signUp } = useAuth()
-  const [mode, setMode] = useState('signin') // 'signin' | 'signup'
+  const [mode, setMode] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
+
+  function switchMode(m) {
+    setMode(m)
+    setError(null)
+    setSuccess(null)
+    setEmail('')
+    setPassword('')
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -22,7 +30,7 @@ export function Login() {
         setError(error.message)
       } else {
         setSuccess('Account created! Check your email to confirm, then sign in.')
-        setMode('signin')
+        switchMode('signin')
       }
     } else {
       const { error } = await signIn(email, password)
@@ -35,10 +43,33 @@ export function Login() {
   return (
     <div className="min-h-screen bg-blue-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8">
-        <h1 className="text-2xl font-bold text-gray-800 mb-1">AutoParts Manager</h1>
-        <p className="text-gray-500 text-sm mb-8">
-          {mode === 'signin' ? 'Sign in to your account' : 'Create a new account'}
-        </p>
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">AutoParts Manager</h1>
+
+        {/* Tabs */}
+        <div className="flex rounded-lg overflow-hidden border border-gray-200 mb-6">
+          <button
+            type="button"
+            onClick={() => switchMode('signin')}
+            className={`flex-1 py-2 text-sm font-semibold transition-colors ${
+              mode === 'signin'
+                ? 'bg-blue-700 text-white'
+                : 'bg-white text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode('signup')}
+            className={`flex-1 py-2 text-sm font-semibold transition-colors ${
+              mode === 'signup'
+                ? 'bg-blue-700 text-white'
+                : 'bg-white text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            Sign Up
+          </button>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -70,7 +101,6 @@ export function Login() {
           {error && (
             <p className="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2">{error}</p>
           )}
-
           {success && (
             <p className="text-green-700 text-sm bg-green-50 rounded-lg px-3 py-2">{success}</p>
           )}
@@ -82,20 +112,9 @@ export function Login() {
           >
             {loading
               ? mode === 'signup' ? 'Creating account…' : 'Signing in…'
-              : mode === 'signup' ? 'Create account' : 'Sign in'}
+              : mode === 'signup' ? 'Create Account' : 'Sign In'}
           </button>
         </form>
-
-        <p className="text-center text-sm text-gray-500 mt-6">
-          {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
-          <button
-            type="button"
-            onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null); setSuccess(null) }}
-            className="text-blue-700 font-medium hover:underline"
-          >
-            {mode === 'signin' ? 'Create one' : 'Sign in'}
-          </button>
-        </p>
       </div>
     </div>
   )
