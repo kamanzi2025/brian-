@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: '/finance-management-/',
+  base: '/',
   plugins: [
     react(),
     tailwindcss(),
@@ -30,7 +30,7 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait-primary',
-        start_url: '/finance-management-/',
+        start_url: '/',
         icons: [
           {
             src: '/icons/icon-192.png',
