@@ -32,13 +32,18 @@ export function AuthProvider({ children }) {
       ? Promise.resolve({ data: { session: LOCAL_SESSION }, error: null })
       : supabase.auth.signInWithPassword({ email, password })
 
+  const signUp = (email, password) =>
+    NO_SUPABASE
+      ? Promise.resolve({ data: { session: LOCAL_SESSION }, error: null })
+      : supabase.auth.signUp({ email, password })
+
   const signOut = () => {
     if (NO_SUPABASE) { setSession(null); return Promise.resolve() }
     return supabase.auth.signOut()
   }
 
   return (
-    <AuthContext.Provider value={{ session, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   )
