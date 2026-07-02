@@ -10,10 +10,11 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Cache the app shell (HTML, JS, CSS, fonts) for offline use
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Runtime caching: skip Supabase API calls (those need network)
+        // Skip waiting and claim clients immediately so updates apply without manual refresh
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
