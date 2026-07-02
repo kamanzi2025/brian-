@@ -16,7 +16,6 @@ const STATUS_COLORS = {
 const PAYMENT_METHODS = [
   { key: 'cash', label: 'Cash' },
   { key: 'mobile_money', label: 'Mobile Money' },
-  { key: 'card', label: 'Card' },
   { key: 'credit', label: 'On Credit' },
 ]
 

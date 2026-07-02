@@ -34,10 +34,11 @@ export function SupplierDetail() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'tabs' | 'payments'
   const [proofModal, setProofModal] = useState(null)
+  const [tabError, setTabError] = useState(null)
 
   const supplier = useLiveQuery(() => db.suppliers.get(id), [id])
   const tabs = useLiveQuery(
-    () => db.supplier_tabs.where('supplier_id').equals(id).reverse().sortBy('opened_at'),
+    () => db.supplier_tabs.where('supplier_id').equals(id).reverse().sortBy('opened_date'),
     [id]
   )
   const purchases = useLiveQuery(
@@ -67,7 +68,12 @@ export function SupplierDetail() {
   const paidInFull = (supplier.balance_owed ?? 0) === 0
 
   async function handleOpenTab() {
-    await openSupplierTab(id)
+    setTabError(null)
+    try {
+      await openSupplierTab(id)
+    } catch (err) {
+      setTabError(err.message)
+    }
   }
 
   async function handleCloseTab(tabId) {
@@ -173,6 +179,9 @@ export function SupplierDetail() {
           >
             + Open New Purchase Tab
           </button>
+          {tabError && (
+            <p className="text-red-600 bg-red-50 rounded-xl px-4 py-3 text-sm">{tabError}</p>
+          )}
 
           {(tabs ?? []).length === 0 && (
             <p className="text-center text-gray-400 py-6 text-sm">No purchase tabs yet.</p>
@@ -191,12 +200,12 @@ export function SupplierDetail() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-gray-800 text-sm">
-                        Tab opened {tab.opened_at?.slice(0, 10)}
+                        Tab opened {tab.opened_date}
                       </p>
                       <Badge color={isOpen ? 'blue' : 'gray'}>{isOpen ? 'Open' : 'Closed'}</Badge>
                     </div>
-                    {tab.closed_at && (
-                      <p className="text-xs text-gray-400">Closed {tab.closed_at.slice(0, 10)}</p>
+                    {tab.closed_date && (
+                      <p className="text-xs text-gray-400">Closed {tab.closed_date}</p>
                     )}
                   </div>
                   <div className="text-right">
