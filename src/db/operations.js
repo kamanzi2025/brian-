@@ -266,6 +266,43 @@ export async function savePayment({ payment, customerId, supplierId }) {
   )
 }
 
+// ─── SUPPLIER TABS ────────────────────────────────────────────────────────────
+
+export async function openSupplierTab(supplierId) {
+  const existing = await db.supplier_tabs
+    .where('supplier_id').equals(supplierId)
+    .filter((t) => t.status === 'open')
+    .first()
+  if (existing) throw new Error('Supplier already has an open tab.')
+
+  const tab = {
+    id: newId(),
+    supplier_id: supplierId,
+    status: 'open',
+    opened_date: today(),
+    closed_date: null,
+    total_purchases: 0,
+    total_paid: 0,
+    updated_at: nowIso(),
+    synced: 0,
+  }
+  await db.supplier_tabs.put(tab)
+  return tab
+}
+
+export async function closeSupplierTab(tabId) {
+  const tab = await db.supplier_tabs.get(tabId)
+  if (!tab) throw new Error('Tab not found.')
+  if (tab.status === 'closed') throw new Error('Tab is already closed.')
+
+  await db.supplier_tabs.update(tabId, {
+    status: 'closed',
+    closed_date: today(),
+    updated_at: nowIso(),
+    synced: 0,
+  })
+}
+
 // ─── SAVE QUOTATION ───────────────────────────────────────────────────────────
 // Atomic write of a quotation and its line items. No stock change.
 export async function saveQuotation({ quotation, items }) {

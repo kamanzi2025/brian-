@@ -130,6 +130,19 @@ export function More() {
             />
           </div>
         </section>
+
+        {/* Settings */}
+        <section>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+            Settings
+          </p>
+          <ActionCard
+            emoji="📋"
+            label="Fixed Monthly Expenses"
+            description="Configure recurring costs: rent, salaries, utilities, bank loans"
+            onClick={() => navigate('/fixed-expenses')}
+          />
+        </section>
       </div>
     </Layout>
   )

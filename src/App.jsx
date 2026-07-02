@@ -23,6 +23,8 @@ import { StockTransfer } from './pages/StockTransfer'
 import { More } from './pages/More'
 import { Customers } from './pages/Customers'
 import { Suppliers } from './pages/Suppliers'
+import { SupplierDetail } from './pages/SupplierDetail'
+import { FixedExpenses } from './pages/FixedExpenses'
 import { Reports } from './pages/Reports'
 
 function AuthenticatedRoutes() {
@@ -69,6 +71,8 @@ function AuthenticatedRoutes() {
       <Route path="/more" element={<More />} />
       <Route path="/customers" element={<Customers />} />
       <Route path="/suppliers" element={<Suppliers />} />
+      <Route path="/suppliers/:id" element={<SupplierDetail />} />
+      <Route path="/fixed-expenses" element={<FixedExpenses />} />
       <Route path="/reports" element={<Reports />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

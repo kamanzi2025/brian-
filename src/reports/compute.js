@@ -22,6 +22,26 @@ import { db } from '../db/db'
  * COGS uses cost_price recorded on each sale_item; falls back to the
  * product's current cost_price for records saved before that field was added.
  */
+// Returns the sum of all configured fixed monthly expense amounts
+function fixedMonthlyTotal(config) {
+  return (
+    (config.water ?? 0) +
+    (config.electricity ?? 0) +
+    (config.fuel ?? 0) +
+    (config.bank_loan ?? 0) +
+    (config.salaries ?? 0) +
+    (config.rent ?? 0) +
+    (config.other_fixed ?? 0)
+  )
+}
+
+// Count distinct calendar months fully or partially covered by [from, to]
+function monthsInRange(from, to) {
+  const f = new Date(from + 'T00:00:00')
+  const t = new Date(to + 'T00:00:00')
+  return (t.getFullYear() - f.getFullYear()) * 12 + (t.getMonth() - f.getMonth()) + 1
+}
+
 export async function computePL({ from, to }) {
   const sales = await db.sales
     .where('date').between(from, to, true, true)
@@ -35,7 +55,6 @@ export async function computePL({ from, to }) {
     const saleIds = sales.map((s) => s.id)
     const items = await db.sale_items.where('sale_id').anyOf(saleIds).toArray()
 
-    // Build product map as fallback for old records where cost_price=0 on the item
     const productIds = [...new Set(items.map((i) => i.product_id).filter(Boolean))]
     const products =
       productIds.length > 0
@@ -44,7 +63,6 @@ export async function computePL({ from, to }) {
     const pMap = new Map(products.map((p) => [p.id, p]))
 
     cogs = items.reduce((s, i) => {
-      // Prefer cost recorded at sale time; fall back to current product cost
       const cost = (i.cost_price && i.cost_price > 0)
         ? i.cost_price
         : (pMap.get(i.product_id)?.cost_price ?? 0)
@@ -56,7 +74,7 @@ export async function computePL({ from, to }) {
     .where('date').between(from, to, true, true)
     .toArray()
 
-  const totalExpenses = expenses.reduce((s, e) => s + (e.amount ?? 0), 0)
+  const variableExpenses = expenses.reduce((s, e) => s + (e.amount ?? 0), 0)
 
   const expenseByCategory = expenses.reduce((acc, e) => {
     const cat = e.category || 'Other'
@@ -64,6 +82,29 @@ export async function computePL({ from, to }) {
     return acc
   }, {})
 
+  // Add configured fixed monthly expenses pro-rated to the date range
+  const fecRows = await db.fixed_expense_config.toArray()
+  const fec = fecRows[0] ?? {}
+  const monthCount = monthsInRange(from, to)
+  const fixedExpenses = fixedMonthlyTotal(fec) * monthCount
+
+  // Merge fixed expenses into the category breakdown
+  const fixedCategories = {
+    Water: fec.water ?? 0,
+    Electricity: fec.electricity ?? 0,
+    Fuel: fec.fuel ?? 0,
+    'Bank Loan': fec.bank_loan ?? 0,
+    Salaries: fec.salaries ?? 0,
+    Rent: fec.rent ?? 0,
+    'Other (Fixed)': fec.other_fixed ?? 0,
+  }
+  for (const [cat, monthly] of Object.entries(fixedCategories)) {
+    if (monthly > 0) {
+      expenseByCategory[cat] = (expenseByCategory[cat] ?? 0) + monthly * monthCount
+    }
+  }
+
+  const totalExpenses = variableExpenses + fixedExpenses
   const grossProfit = revenue - cogs
   const netProfit = grossProfit - totalExpenses
 
@@ -73,6 +114,8 @@ export async function computePL({ from, to }) {
     grossProfit,
     grossMargin: revenue > 0 ? (grossProfit / revenue) * 100 : 0,
     expenses: totalExpenses,
+    variableExpenses,
+    fixedExpenses,
     expenseByCategory,
     netProfit,
     netMargin: revenue > 0 ? (netProfit / revenue) * 100 : 0,
@@ -108,6 +151,11 @@ export async function computePLMonthly({ from, to }) {
     .where('date').between(from, to, true, true)
     .toArray()
 
+  // Load fixed monthly config
+  const fecRows = await db.fixed_expense_config.toArray()
+  const fec = fecRows[0] ?? {}
+  const fixedMonthly = fixedMonthlyTotal(fec)
+
   // Aggregate into YYYY-MM buckets
   const months = {}
   const ensure = (key) => {
@@ -137,18 +185,23 @@ export async function computePLMonthly({ from, to }) {
 
   return Object.entries(months)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, d]) => ({
-      key,
-      label: new Date(key + '-01T00:00:00').toLocaleDateString('en-US', {
-        month: 'short',
-        year: '2-digit',
-      }),
-      revenue: d.revenue,
-      cogs: d.cogs,
-      expenses: d.expenses,
-      grossProfit: d.revenue - d.cogs,
-      netProfit: d.revenue - d.cogs - d.expenses,
-    }))
+    .map(([key, d]) => {
+      const totalExpenses = d.expenses + fixedMonthly
+      return {
+        key,
+        label: new Date(key + '-01T00:00:00').toLocaleDateString('en-US', {
+          month: 'short',
+          year: '2-digit',
+        }),
+        revenue: d.revenue,
+        cogs: d.cogs,
+        variableExpenses: d.expenses,
+        fixedExpenses: fixedMonthly,
+        expenses: totalExpenses,
+        grossProfit: d.revenue - d.cogs,
+        netProfit: d.revenue - d.cogs - totalExpenses,
+      }
+    })
 }
 
 // ─── BALANCE SHEET ────────────────────────────────────────────────────────────
@@ -198,7 +251,7 @@ export async function computeBalanceSheet() {
   const cashOnHand = cashSales + paymentsIn - paymentsOut - totalExpenses - paidPurchases
 
   const inventoryValue = allProducts.reduce(
-    (s, p) => s + ((p.qty_warehouse ?? 0) + (p.qty_store ?? 0)) * (p.cost_price ?? 0),
+    (s, p) => s + ((p.qty_warehouse ?? 0) + (p.qty_store ?? 0)) * (p.wholesale_price ?? p.cost_price ?? 0),
     0
   )
 
@@ -341,7 +394,7 @@ export async function computeInventory() {
 
   return {
     rows,
-    totalValue: rows.reduce((s, p) => s + p.stockValue, 0),
+    totalValue: rows.reduce((s, p) => s + p.wholesaleValue, 0),
     totalRetailValue: rows.reduce((s, p) => s + p.retailValue, 0),
     totalWholesaleValue: rows.reduce((s, p) => s + p.wholesaleValue, 0),
     totalStoreValue: rows.reduce((s, p) => s + p.storeValue, 0),

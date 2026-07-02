@@ -10,11 +10,9 @@ import { fmt, today, nowIso, newId } from '../utils/format'
 const PAYMENT_METHODS = [
   { key: 'cash', label: 'Cash' },
   { key: 'mobile_money', label: 'Mobile Money' },
-  { key: 'card', label: 'Card' },
   { key: 'credit', label: 'On Credit' },
 ]
 
-// +/- quantity control reused in both Sale and Purchase
 function QtyControl({ value, onChange }) {
   return (
     <div className="flex items-center gap-1">
@@ -46,9 +44,11 @@ function QtyControl({ value, onChange }) {
 export function NewSale() {
   const navigate = useNavigate()
 
-  const [customer, setCustomer] = useState(null)   // null = walk-in
-  const [items, setItems] = useState([])            // [{ product, quantity, unit_price }]
+  const [customer, setCustomer] = useState(null)
+  const [items, setItems] = useState([])
   const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [salesmanName, setSalesmanName] = useState('')
+  const [deliveryAddress, setDeliveryAddress] = useState('')
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [showCustomerPicker, setShowCustomerPicker] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -67,7 +67,6 @@ export function NewSale() {
     setItems((prev) => {
       const existing = prev.find((i) => i.product.id === product.id)
       if (existing) {
-        // Increment quantity if already in list
         return prev.map((i) =>
           i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
         )
@@ -107,6 +106,8 @@ export function NewSale() {
         subtotal,
         vat_amount: vatAmount,
         total,
+        salesman_name: salesmanName.trim() || null,
+        delivery_address: deliveryAddress.trim() || null,
         updated_at: now,
         synced: 0,
       }
@@ -141,10 +142,7 @@ export function NewSale() {
                 <p className="font-semibold text-gray-800">{customer.name}</p>
                 {customer.phone && <p className="text-sm text-gray-400">{customer.phone}</p>}
               </div>
-              <button
-                onClick={() => setCustomer(null)}
-                className="text-xs text-gray-400 underline"
-              >
+              <button onClick={() => setCustomer(null)} className="text-xs text-gray-400 underline">
                 Remove
               </button>
             </div>
@@ -156,6 +154,34 @@ export function NewSale() {
               Walk-in customer — tap to assign →
             </button>
           )}
+        </section>
+
+        {/* ── Salesman + Delivery ───────────────────────── */}
+        <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+              Salesman Name
+            </label>
+            <input
+              type="text"
+              value={salesmanName}
+              onChange={(e) => setSalesmanName(e.target.value)}
+              placeholder="e.g. John"
+              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+              Delivery Address <span className="text-gray-300 normal-case font-normal">(if delivery required)</span>
+            </label>
+            <input
+              type="text"
+              value={deliveryAddress}
+              onChange={(e) => setDeliveryAddress(e.target.value)}
+              placeholder="Leave blank if customer collects"
+              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </section>
 
         {/* ── Line items ────────────────────────────────── */}
@@ -215,13 +241,12 @@ export function NewSale() {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
             Payment Method
           </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {PAYMENT_METHODS.map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => {
                   setPaymentMethod(key)
-                  // Auto-open customer picker when switching to credit
                   if (key === 'credit' && !customer) setShowCustomerPicker(true)
                 }}
                 className={`py-3 rounded-xl text-sm font-semibold border-2 transition-colors ${
@@ -282,7 +307,6 @@ export function NewSale() {
         </button>
       </div>
 
-      {/* ── Modals ──────────────────────────────────────── */}
       <SearchModal
         isOpen={showProductPicker}
         onClose={() => setShowProductPicker(false)}

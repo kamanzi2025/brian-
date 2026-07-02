@@ -5,8 +5,17 @@ import { Layout } from '../components/Layout'
 import { today, nowIso, newId } from '../utils/format'
 
 const CATEGORIES = [
-  'Rent', 'Utilities', 'Salaries', 'Transport',
-  'Maintenance', 'Advertising', 'Supplies', 'Other',
+  'Rent',
+  'Salaries',
+  'Electricity',
+  'Water',
+  'Fuel',
+  'Bank Loan',
+  'Transport',
+  'Maintenance',
+  'Advertising',
+  'Supplies',
+  'Other',
 ]
 
 const inputCls =

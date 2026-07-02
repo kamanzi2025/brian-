@@ -39,8 +39,16 @@ export function NewPurchase() {
   const navigate = useNavigate()
 
   const [supplier, setSupplier] = useState(null)
-  const [items, setItems] = useState([])  // [{ product, quantity, unit_cost }]
+  const [items, setItems] = useState([])
   const [paymentStatus, setPaymentStatus] = useState('unpaid')
+  const [depositPaid, setDepositPaid] = useState('')
+  const [freightCost, setFreightCost] = useState('')
+  // RMB mode
+  const [useRmb, setUseRmb] = useState(false)
+  const [exchangeRate, setExchangeRate] = useState('190')
+  // Supplier tab
+  const [tabId, setTabId] = useState(null)
+
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [showSupplierPicker, setShowSupplierPicker] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -49,7 +57,32 @@ export function NewPurchase() {
   const allProducts = useLiveQuery(() => db.products.orderBy('name').toArray(), [])
   const allSuppliers = useLiveQuery(() => db.suppliers.orderBy('name').toArray(), [])
 
-  const total = items.reduce((sum, i) => sum + i.quantity * i.unit_cost, 0)
+  // Load open tab for selected supplier
+  const openTab = useLiveQuery(
+    () => supplier
+      ? db.supplier_tabs
+          .where('supplier_id').equals(supplier.id)
+          .filter((t) => t.status === 'open')
+          .first()
+      : Promise.resolve(null),
+    [supplier?.id]
+  )
+
+  // Compute local cost from RMB if mode active
+  function rmbToLocal(rmb) {
+    const rate = parseFloat(exchangeRate) || 0
+    return (parseFloat(rmb) || 0) * rate
+  }
+
+  const itemsTotal = items.reduce((sum, i) => {
+    const baseCost = useRmb ? rmbToLocal(i.rmb_unit_cost) : i.unit_cost
+    const lineFreight = parseFloat(i.freight_cost) || 0
+    const lineTax = parseFloat(i.tax_per_item) || 0
+    return sum + i.quantity * (baseCost + lineFreight + lineTax)
+  }, 0)
+
+  const freightTotal = parseFloat(freightCost) || 0
+  const total = itemsTotal + freightTotal
 
   function addProduct(product) {
     setItems((prev) => {
@@ -59,23 +92,33 @@ export function NewPurchase() {
           i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
         )
       }
-      return [...prev, { product, quantity: 1, unit_cost: +(product.cost_price ?? 0) }]
+      return [
+        ...prev,
+        {
+          product,
+          quantity: 1,
+          unit_cost: +(product.cost_price ?? 0),
+          rmb_unit_cost: '',
+          freight_cost: '',
+          tax_per_item: '',
+        },
+      ]
     })
   }
 
-  function updateQty(idx, qty) {
-    setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, quantity: qty } : item)))
-  }
-
-  // Unit cost is editable in purchases — price may differ from the stored cost_price
-  function updateCost(idx, cost) {
+  function updateItem(idx, field, value) {
     setItems((prev) =>
-      prev.map((item, i) => (i === idx ? { ...item, unit_cost: parseFloat(cost) || 0 } : item))
+      prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item))
     )
   }
 
   function removeItem(idx) {
     setItems((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  function getEffectiveCost(item) {
+    if (useRmb) return rmbToLocal(item.rmb_unit_cost)
+    return parseFloat(item.unit_cost) || 0
   }
 
   async function handleSave() {
@@ -92,22 +135,42 @@ export function NewPurchase() {
     try {
       const purchaseId = newId()
       const now = nowIso()
+
+      const rmbTotal = useRmb
+        ? items.reduce((s, i) => s + i.quantity * (parseFloat(i.rmb_unit_cost) || 0), 0)
+        : null
+
       const purchase = {
         id: purchaseId,
         date: today(),
         supplier_id: supplier.id,
         payment_status: paymentStatus,
         total,
+        rmb_total: rmbTotal,
+        exchange_rate: useRmb ? parseFloat(exchangeRate) : null,
+        deposit_paid: parseFloat(depositPaid) || 0,
+        freight_cost: freightTotal,
+        tab_id: tabId ?? openTab?.id ?? null,
         updated_at: now,
         synced: 0,
       }
-      const purchaseItems = items.map((item) => ({
-        id: newId(),
-        purchase_id: purchaseId,
-        product_id: item.product.id,
-        quantity: item.quantity,
-        unit_cost: item.unit_cost,
-      }))
+
+      const purchaseItems = items.map((item) => {
+        const effectiveCost = getEffectiveCost(item)
+        const lineFreight = parseFloat(item.freight_cost) || 0
+        const lineTax = parseFloat(item.tax_per_item) || 0
+        return {
+          id: newId(),
+          purchase_id: purchaseId,
+          product_id: item.product.id,
+          quantity: item.quantity,
+          unit_cost: effectiveCost + lineFreight + lineTax,
+          rmb_unit_cost: useRmb ? parseFloat(item.rmb_unit_cost) || null : null,
+          freight_cost: lineFreight,
+          tax_per_item: lineTax,
+        }
+      })
+
       await savePurchase({ purchase, items: purchaseItems })
       navigate('/')
     } catch (err) {
@@ -129,11 +192,13 @@ export function NewPurchase() {
               <div>
                 <p className="font-semibold text-gray-800">{supplier.name}</p>
                 {supplier.phone && <p className="text-sm text-gray-400">{supplier.phone}</p>}
+                {openTab && (
+                  <span className="inline-block mt-1 text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full">
+                    Open tab: since {openTab.opened_date}
+                  </span>
+                )}
               </div>
-              <button
-                onClick={() => setShowSupplierPicker(true)}
-                className="text-xs text-blue-600 underline"
-              >
+              <button onClick={() => setShowSupplierPicker(true)} className="text-xs text-blue-600 underline">
                 Change
               </button>
             </div>
@@ -147,6 +212,46 @@ export function NewPurchase() {
           )}
         </section>
 
+        {/* ── RMB Mode toggle ───────────────────────────── */}
+        <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-700">China Supplier / RMB Pricing</p>
+              <p className="text-xs text-gray-400">Enter prices in Chinese Yuan (¥)</p>
+            </div>
+            <button
+              onClick={() => setUseRmb((v) => !v)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${useRmb ? 'bg-blue-600' : 'bg-gray-200'}`}
+            >
+              <span
+                className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${useRmb ? 'translate-x-6' : 'translate-x-0.5'}`}
+              />
+            </button>
+          </div>
+
+          {useRmb && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Exchange Rate (1 ¥ =)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={exchangeRate}
+                  onChange={(e) => setExchangeRate(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 flex items-center">
+                <div>
+                  <p className="text-xs text-amber-600 font-medium">Rate used for all items</p>
+                  <p className="text-sm font-bold text-amber-800">1 ¥ = {fmt(parseFloat(exchangeRate) || 0)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+
         {/* ── Line items ────────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-4 pt-4 pb-2">
@@ -156,38 +261,99 @@ export function NewPurchase() {
           {items.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-6">No items yet.</p>
           ) : (
-            items.map((item, idx) => (
-              <div key={idx} className="px-4 py-3 border-t border-gray-50">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <p className="font-semibold text-gray-800 truncate flex-1">{item.product.name}</p>
-                  <button
-                    onClick={() => removeItem(idx)}
-                    className="text-gray-300 hover:text-red-400 text-lg shrink-0 leading-none"
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="flex items-center gap-3">
-                  <QtyControl value={item.quantity} onChange={(qty) => updateQty(idx, qty)} />
-                  <span className="text-gray-400 text-sm">×</span>
-                  {/* Cost is editable so the user can enter the actual invoice price */}
-                  <div className="flex-1">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.unit_cost}
-                      onChange={(e) => updateCost(idx, e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      placeholder="Unit cost"
-                    />
+            items.map((item, idx) => {
+              const effectiveCost = getEffectiveCost(item)
+              const lineFreight = parseFloat(item.freight_cost) || 0
+              const lineTax = parseFloat(item.tax_per_item) || 0
+              const totalCostPerUnit = effectiveCost + lineFreight + lineTax
+              return (
+                <div key={idx} className="px-4 py-3 border-t border-gray-50 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-gray-800 truncate flex-1">{item.product.name}</p>
+                    <button
+                      onClick={() => removeItem(idx)}
+                      className="text-gray-300 hover:text-red-400 text-lg shrink-0 leading-none"
+                    >
+                      ×
+                    </button>
                   </div>
-                  <p className="font-bold text-gray-800 text-sm shrink-0 w-20 text-right">
-                    {fmt(item.quantity * item.unit_cost)}
-                  </p>
+
+                  {/* Qty + unit cost */}
+                  <div className="flex items-center gap-2">
+                    <QtyControl value={item.quantity} onChange={(qty) => updateItem(idx, 'quantity', qty)} />
+                    <span className="text-gray-400 text-sm">×</span>
+                    <div className="flex-1">
+                      {useRmb ? (
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-600 font-bold text-xs">¥</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.rmb_unit_cost}
+                            onChange={(e) => updateItem(idx, 'rmb_unit_cost', e.target.value)}
+                            className="w-full border border-amber-300 rounded-lg pl-7 pr-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                            placeholder="RMB price"
+                          />
+                        </div>
+                      ) : (
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.unit_cost}
+                          onChange={(e) => updateItem(idx, 'unit_cost', e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          placeholder="Unit cost"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Freight + Tax per item */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-400 mb-0.5 block">Freight / item</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.freight_cost}
+                        onChange={(e) => updateItem(idx, 'freight_cost', e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-0.5 block">Tax / item</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.tax_per_item}
+                        onChange={(e) => updateItem(idx, 'tax_per_item', e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Line subtotal */}
+                  <div className="flex items-center justify-between text-xs text-gray-500 bg-gray-50 rounded-lg px-2 py-1.5">
+                    <span>
+                      {useRmb && item.rmb_unit_cost
+                        ? `¥${item.rmb_unit_cost} × rate = ${fmt(effectiveCost)}`
+                        : `Cost: ${fmt(effectiveCost)}`}
+                      {lineFreight > 0 ? ` + ${fmt(lineFreight)} freight` : ''}
+                      {lineTax > 0 ? ` + ${fmt(lineTax)} tax` : ''}
+                    </span>
+                    <span className="font-bold text-gray-800">
+                      {fmt(item.quantity * totalCostPerUnit)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
 
           <div className="px-4 pb-4 pt-3 border-t border-gray-50">
@@ -198,6 +364,44 @@ export function NewPurchase() {
               + Add Item
             </button>
           </div>
+        </section>
+
+        {/* ── Global freight cost ───────────────────────── */}
+        <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+            Sea Freight / Shipping (overall)
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={freightCost}
+            onChange={(e) => setFreightCost(e.target.value)}
+            placeholder="0.00"
+            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p className="text-xs text-gray-400 mt-1">Added on top of per-item freight.</p>
+        </section>
+
+        {/* ── Deposit paid ──────────────────────────────── */}
+        <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+            Deposit / Advance Paid
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={depositPaid}
+            onChange={(e) => setDepositPaid(e.target.value)}
+            placeholder="0.00"
+            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {depositPaid && parseFloat(depositPaid) > 0 && (
+            <p className="text-xs text-green-700 mt-1">
+              Remaining after deposit: {fmt(Math.max(0, total - parseFloat(depositPaid)))}
+            </p>
+          )}
         </section>
 
         {/* ── Payment status ────────────────────────────── */}
@@ -230,13 +434,29 @@ export function NewPurchase() {
           )}
         </section>
 
-        {/* ── Total & save ──────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500">Total</p>
+        {/* ── Total breakdown ───────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-2">
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <span>Items subtotal</span>
+            <span>{fmt(itemsTotal)}</span>
+          </div>
+          {freightTotal > 0 && (
+            <div className="flex items-center justify-between text-sm text-gray-500">
+              <span>Sea freight</span>
+              <span>{fmt(freightTotal)}</span>
+            </div>
+          )}
+          {depositPaid && parseFloat(depositPaid) > 0 && (
+            <div className="flex items-center justify-between text-sm text-green-600">
+              <span>Deposit paid</span>
+              <span>− {fmt(parseFloat(depositPaid))}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+            <p className="font-bold text-gray-800">Total</p>
             <p className="text-2xl font-bold text-gray-800">{fmt(total)}</p>
           </div>
-          <p className="text-sm text-gray-400">{items.length} item{items.length !== 1 ? 's' : ''}</p>
+          <p className="text-xs text-gray-400">{items.length} item{items.length !== 1 ? 's' : ''}</p>
         </div>
 
         {error && (
@@ -252,7 +472,6 @@ export function NewPurchase() {
         </button>
       </div>
 
-      {/* ── Modals ──────────────────────────────────────── */}
       <SearchModal
         isOpen={showProductPicker}
         onClose={() => setShowProductPicker(false)}

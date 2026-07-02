@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
@@ -10,6 +10,7 @@ import { fmt, today, nowIso, newId } from '../utils/format'
 const METHODS = [
   { key: 'cash', label: 'Cash' },
   { key: 'mobile_money', label: 'Mobile Money' },
+  { key: 'alipay', label: 'AliPay' },
   { key: 'bank', label: 'Bank Transfer' },
 ]
 
@@ -18,32 +19,84 @@ const inputCls =
 
 export function RecordPayment() {
   const navigate = useNavigate()
+  const fileInputRef = useRef(null)
 
-  // 'in' = payment received from customer (reduces their balance_owed)
-  // 'out' = payment sent to supplier (reduces what we owe them)
   const [direction, setDirection] = useState('in')
   const [customer, setCustomer] = useState(null)
   const [supplier, setSupplier] = useState(null)
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState('cash')
   const [date, setDate] = useState(today())
+  const [recipientName, setRecipientName] = useState('')
+  const [note, setNote] = useState('')
+  const [proofImage, setProofImage] = useState(null) // base64 data URL
+  // RMB converter
+  const [rmbAmount, setRmbAmount] = useState('')
+  const [exchangeRate, setExchangeRate] = useState('190') // default RMB→local rate
+  const [showRmbConverter, setShowRmbConverter] = useState(false)
+
   const [showCustomerPicker, setShowCustomerPicker] = useState(false)
   const [showSupplierPicker, setShowSupplierPicker] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [paidInFull, setPaidInFull] = useState(false)
 
   const allCustomers = useLiveQuery(() => db.customers.orderBy('name').toArray(), [])
   const allSuppliers = useLiveQuery(() => db.suppliers.orderBy('name').toArray(), [])
 
-  // Reset entity selection when direction changes
   function setDir(dir) {
     setDirection(dir)
     setCustomer(null)
     setSupplier(null)
+    setRecipientName('')
+    setProofImage(null)
+    setRmbAmount('')
+    setPaidInFull(false)
   }
 
   const entity = direction === 'in' ? customer : supplier
   const entityLabel = direction === 'in' ? 'Customer' : 'Supplier'
+
+  // When user types RMB amount + has a rate, auto-fill local amount
+  function handleRmbChange(val) {
+    setRmbAmount(val)
+    const rmb = parseFloat(val)
+    const rate = parseFloat(exchangeRate)
+    if (!isNaN(rmb) && !isNaN(rate) && rate > 0) {
+      setAmount(String((rmb * rate).toFixed(2)))
+    }
+  }
+
+  function handleRateChange(val) {
+    setExchangeRate(val)
+    const rmb = parseFloat(rmbAmount)
+    const rate = parseFloat(val)
+    if (!isNaN(rmb) && !isNaN(rate) && rate > 0) {
+      setAmount(String((rmb * rate).toFixed(2)))
+    }
+  }
+
+  function handleImageUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => setProofImage(ev.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  function checkPaidInFull(amt) {
+    if (direction === 'out' && supplier) {
+      const balance = supplier.balance_owed ?? 0
+      setPaidInFull(parseFloat(amt) >= balance && balance > 0)
+    } else {
+      setPaidInFull(false)
+    }
+  }
+
+  function handleAmountChange(val) {
+    setAmount(val)
+    checkPaidInFull(val)
+  }
 
   async function handleSave() {
     if (!amount || +amount <= 0) {
@@ -69,6 +122,12 @@ export function RecordPayment() {
         amount: parseFloat(amount),
         method,
         direction,
+        supplier_id: direction === 'out' ? supplier?.id ?? null : null,
+        recipient_name: direction === 'out' ? recipientName.trim() || null : null,
+        proof_image: direction === 'out' ? proofImage : null,
+        rmb_amount: rmbAmount ? parseFloat(rmbAmount) : null,
+        exchange_rate: exchangeRate ? parseFloat(exchangeRate) : null,
+        note: note.trim() || null,
         updated_at: nowIso(),
         synced: 0,
       }
@@ -88,6 +147,14 @@ export function RecordPayment() {
   return (
     <Layout title="Record Payment" showBack>
       <div className="space-y-4 pb-4">
+
+        {/* ── Paid in full banner ───────────────────────── */}
+        {paidInFull && (
+          <div className="bg-green-50 border-2 border-green-400 rounded-xl px-4 py-3 text-center">
+            <p className="text-green-700 font-bold text-base">✓ PAID IN FULL</p>
+            <p className="text-green-600 text-sm">{supplier?.name} balance will be cleared</p>
+          </div>
+        )}
 
         {/* ── Direction toggle ──────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
@@ -133,9 +200,7 @@ export function RecordPayment() {
               </div>
               <button
                 onClick={() =>
-                  direction === 'in'
-                    ? setShowCustomerPicker(true)
-                    : setShowSupplierPicker(true)
+                  direction === 'in' ? setShowCustomerPicker(true) : setShowSupplierPicker(true)
                 }
                 className="text-xs text-blue-600 underline"
               >
@@ -145,9 +210,7 @@ export function RecordPayment() {
           ) : (
             <button
               onClick={() =>
-                direction === 'in'
-                  ? setShowCustomerPicker(true)
-                  : setShowSupplierPicker(true)
+                direction === 'in' ? setShowCustomerPicker(true) : setShowSupplierPicker(true)
               }
               className="w-full py-2 border-2 border-dashed border-blue-300 text-blue-600 rounded-xl text-sm font-semibold hover:bg-blue-50"
             >
@@ -155,6 +218,64 @@ export function RecordPayment() {
             </button>
           )}
         </section>
+
+        {/* ── RMB Converter (supplier payments only) ────── */}
+        {direction === 'out' && (
+          <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+            <button
+              onClick={() => setShowRmbConverter((v) => !v)}
+              className="flex items-center justify-between w-full"
+            >
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                RMB Currency Converter
+              </p>
+              <span className="text-gray-400 text-sm">{showRmbConverter ? '∧' : '∨'}</span>
+            </button>
+            {showRmbConverter && (
+              <div className="mt-3 space-y-3">
+                <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                  <p className="text-xs text-amber-700">
+                    Enter amount in RMB to auto-calculate local equivalent.
+                    Adjust the exchange rate as needed.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Amount (¥ RMB)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={rmbAmount}
+                      onChange={(e) => handleRmbChange(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Rate (1 ¥ =)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={exchangeRate}
+                      onChange={(e) => handleRateChange(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {rmbAmount && exchangeRate && (
+                  <div className="bg-blue-50 rounded-xl px-3 py-2 text-center">
+                    <p className="text-xs text-blue-600">Equivalent local amount</p>
+                    <p className="text-lg font-bold text-blue-800">
+                      {fmt(parseFloat(rmbAmount || 0) * parseFloat(exchangeRate || 0))}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* ── Amount + date ─────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
@@ -168,14 +289,17 @@ export function RecordPayment() {
               step="0.01"
               className={inputCls}
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => handleAmountChange(e.target.value)}
               placeholder="0.00"
               autoFocus
             />
             {entity && entity.balance_owed > 0 && (
               <button
                 className="text-xs text-blue-600 underline mt-1"
-                onClick={() => setAmount(String(entity.balance_owed))}
+                onClick={() => {
+                  setAmount(String(entity.balance_owed))
+                  checkPaidInFull(entity.balance_owed)
+                }}
               >
                 Use full balance ({fmt(entity.balance_owed)})
               </button>
@@ -190,14 +314,77 @@ export function RecordPayment() {
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Note (optional)</label>
+            <input
+              type="text"
+              className={inputCls}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Reference number, description…"
+            />
+          </div>
         </section>
+
+        {/* ── Supplier-specific fields ─────────────────── */}
+        {direction === 'out' && (
+          <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+              Supplier Payment Details
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Name</label>
+              <input
+                type="text"
+                className={inputCls}
+                value={recipientName}
+                onChange={(e) => setRecipientName(e.target.value)}
+                placeholder="Name of person / company paid"
+              />
+            </div>
+
+            {/* Proof of payment image */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Proof of Payment (screenshot)
+              </label>
+              {proofImage ? (
+                <div className="relative">
+                  <img
+                    src={proofImage}
+                    alt="Proof of payment"
+                    className="w-full rounded-xl border border-gray-200 max-h-48 object-contain"
+                  />
+                  <button
+                    onClick={() => setProofImage(null)}
+                    className="absolute top-2 right-2 bg-red-600 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl text-sm font-medium hover:border-blue-300 hover:text-blue-600"
+                >
+                  + Upload Screenshot
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+            </div>
+          </section>
+        )}
 
         {/* ── Payment method ────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Method
-          </p>
-          <div className="grid grid-cols-3 gap-2">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Method</p>
+          <div className="grid grid-cols-2 gap-2">
             {METHODS.map(({ key, label }) => (
               <button
                 key={key}
@@ -227,7 +414,6 @@ export function RecordPayment() {
         </button>
       </div>
 
-      {/* ── Modals ──────────────────────────────────────── */}
       <SearchModal
         isOpen={showCustomerPicker}
         onClose={() => setShowCustomerPicker(false)}
@@ -257,15 +443,18 @@ export function RecordPayment() {
         placeholder="Search supplier name…"
         items={allSuppliers ?? []}
         searchKeys={['name', 'phone']}
-        onSelect={setSupplier}
+        onSelect={(s) => {
+          setSupplier(s)
+          checkPaidInFull(amount)
+        }}
         emptyMessage="No suppliers yet."
         renderItem={(s) => (
           <div>
             <p className="font-semibold text-gray-800">{s.name}</p>
             <div className="flex gap-4 text-xs text-gray-400 mt-0.5">
               {s.phone && <span>{s.phone}</span>}
-              <span className={s.balance_owed > 0 ? 'text-yellow-600 font-medium' : ''}>
-                Balance: {fmt(s.balance_owed ?? 0)}
+              <span className={s.balance_owed > 0 ? 'text-yellow-600 font-medium' : 'text-green-600 font-medium'}>
+                {s.balance_owed > 0 ? `Balance: ${fmt(s.balance_owed)}` : '✓ Paid in full'}
               </span>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { Layout } from '../components/Layout'
@@ -107,9 +108,9 @@ function SupplierForm({ initial, onSave, onCancel }) {
 }
 
 export function Suppliers() {
+  const navigate = useNavigate()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [expandedId, setExpandedId] = useState(null)
 
   const suppliers = useLiveQuery(() => db.suppliers.orderBy('name').toArray(), [])
 
@@ -140,61 +141,39 @@ export function Suppliers() {
         )}
 
         {(suppliers ?? []).map((s) => {
-          const isExpanded = expandedId === s.id
+          const paidInFull = (s.balance_owed ?? 0) === 0
           return (
-            <div
+            <button
               key={s.id}
-              className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden"
+              onClick={() => navigate(`/suppliers/${s.id}`)}
+              className="w-full text-left bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md active:bg-gray-50 transition-shadow"
             >
-              <button
-                onClick={() => setExpandedId(isExpanded ? null : s.id)}
-                className="w-full text-left p-4 hover:bg-gray-50 active:bg-gray-100"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-gray-800">{s.name}</p>
-                    <div className="flex gap-3 mt-0.5">
-                      {s.phone && <span className="text-xs text-gray-400">{s.phone}</span>}
-                      {s.payment_terms && (
-                        <span className="text-xs text-blue-600">{s.payment_terms}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {s.balance_owed > 0 && (
-                      <span className="text-sm font-bold text-yellow-600">Owe {fmt(s.balance_owed)}</span>
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-800 truncate">{s.name}</p>
+                  <div className="flex gap-3 mt-0.5 flex-wrap">
+                    {s.phone && <span className="text-xs text-gray-400">{s.phone}</span>}
+                    {s.payment_terms && (
+                      <span className="text-xs text-blue-600">{s.payment_terms}</span>
                     )}
-                    <span className="text-gray-300 text-lg">{isExpanded ? '∧' : '∨'}</span>
                   </div>
                 </div>
-              </button>
-
-              {isExpanded && (
-                <div className="border-t border-gray-50 px-4 pb-4 pt-3 space-y-2">
-                  {s.email && (
-                    <p className="text-sm text-gray-600">
-                      <span className="text-gray-400">Email: </span>{s.email}
-                    </p>
+                <div className="flex items-center gap-2 shrink-0 ml-2">
+                  {paidInFull ? (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                      Paid in full
+                    </span>
+                  ) : (
+                    <span className="text-sm font-bold text-yellow-600">
+                      Owe {fmt(s.balance_owed)}
+                    </span>
                   )}
-                  {s.address && (
-                    <p className="text-sm text-gray-600">
-                      <span className="text-gray-400">Address: </span>{s.address}
-                    </p>
-                  )}
-                  {s.notes && (
-                    <p className="text-sm text-gray-600">
-                      <span className="text-gray-400">Notes: </span>{s.notes}
-                    </p>
-                  )}
-                  <button
-                    onClick={() => { setEditing(s); setShowForm(true); setExpandedId(null) }}
-                    className="text-xs text-blue-600 underline mt-1"
-                  >
-                    Edit supplier
-                  </button>
+                  <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
                 </div>
-              )}
-            </div>
+              </div>
+            </button>
           )
         })}
 
