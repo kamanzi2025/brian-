@@ -47,6 +47,8 @@ const SYNCED_TABLES = [
   'quotations',
   'returns',
   'stock_movements',
+  'supplier_tabs',
+  'fixed_expense_config',
 ]
 
 // Child tables that need to be pushed alongside their parent
