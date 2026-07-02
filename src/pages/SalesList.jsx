@@ -9,7 +9,6 @@ import { fmt, today } from '../utils/format'
 const METHOD_LABELS = {
   cash: 'Cash',
   mobile_money: 'Mobile Money',
-  card: 'Card',
   credit: 'Credit',
 }
 
@@ -66,7 +65,7 @@ export function SalesList() {
 
         {/* Payment method filter */}
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {['all', 'cash', 'mobile_money', 'card', 'credit'].map((m) => (
+          {['all', 'cash', 'mobile_money', 'credit'].map((m) => (
             <button
               key={m}
               onClick={() => setMethodFilter(m)}

@@ -11,7 +11,6 @@ import { fmt } from '../utils/format'
 const METHOD_LABELS = {
   cash: 'Cash',
   mobile_money: 'Mobile Money',
-  card: 'Card',
   credit: 'Credit',
 }
 
