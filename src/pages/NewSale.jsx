@@ -46,6 +46,7 @@ export function NewSale() {
 
   const [customer, setCustomer] = useState(null)
   const [items, setItems] = useState([])
+  const [priceMode, setPriceModeState] = useState('retail') // 'retail' | 'wholesale'
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [salesmanName, setSalesmanName] = useState('')
   const [deliveryAddress, setDeliveryAddress] = useState('')
@@ -59,9 +60,28 @@ export function NewSale() {
 
   const hasStockError = items.some((i) => i.quantity > (i.product.qty_store ?? 0))
 
-  const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
+  const subtotal = items.reduce((sum, i) => sum + i.quantity * (parseFloat(i.unit_price) || 0), 0)
   const vatAmount = subtotal * 0.18
   const total = subtotal + vatAmount
+
+  function defaultPrice(product, mode) {
+    return mode === 'wholesale'
+      ? +(product.wholesale_price ?? 0)
+      : +(product.selling_price ?? 0)
+  }
+
+  // Switch price mode and re-price all items that haven't been manually edited
+  function setPriceMode(mode) {
+    setPriceModeState(mode)
+    setItems((prev) =>
+      prev.map((i) => ({
+        ...i,
+        unit_price: i.manually_edited
+          ? i.unit_price
+          : defaultPrice(i.product, mode),
+      }))
+    )
+  }
 
   function addProduct(product) {
     setItems((prev) => {
@@ -71,12 +91,39 @@ export function NewSale() {
           i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
         )
       }
-      return [...prev, { product, quantity: 1, unit_price: +(product.selling_price ?? 0) }]
+      return [
+        ...prev,
+        {
+          product,
+          quantity: 1,
+          unit_price: defaultPrice(product, priceMode),
+          manually_edited: false,
+        },
+      ]
     })
   }
 
   function updateQty(idx, qty) {
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, quantity: qty } : item)))
+  }
+
+  function updatePrice(idx, val) {
+    setItems((prev) =>
+      prev.map((item, i) =>
+        i === idx ? { ...item, unit_price: val, manually_edited: true } : item
+      )
+    )
+  }
+
+  // Reset a single item back to the mode default price
+  function resetPrice(idx) {
+    setItems((prev) =>
+      prev.map((item, i) =>
+        i === idx
+          ? { ...item, unit_price: defaultPrice(item.product, priceMode), manually_edited: false }
+          : item
+      )
+    )
   }
 
   function removeItem(idx) {
@@ -184,6 +231,34 @@ export function NewSale() {
           </div>
         </section>
 
+        {/* ── Price mode toggle ─────────────────────────── */}
+        <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+            Selling Price Type
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { key: 'retail', label: 'Retail Price', sub: 'Standard selling price' },
+              { key: 'wholesale', label: 'Wholesale Price', sub: 'Bulk / trade price' },
+            ].map(({ key, label, sub }) => (
+              <button
+                key={key}
+                onClick={() => setPriceMode(key)}
+                className={`py-3 px-3 rounded-xl text-left border-2 transition-colors ${
+                  priceMode === key
+                    ? 'border-blue-600 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <p className={`text-sm font-semibold ${priceMode === key ? 'text-blue-700' : 'text-gray-700'}`}>
+                  {label}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* ── Line items ────────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-4 pt-4 pb-2">
@@ -196,12 +271,20 @@ export function NewSale() {
             items.map((item, idx) => {
               const storeQty = item.product.qty_store ?? 0
               const overStock = item.quantity > storeQty
+              const unitPrice = parseFloat(item.unit_price) || 0
+              const retailPrice = item.product.selling_price ?? 0
+              const wholesalePrice = item.product.wholesale_price ?? 0
+              const modeDefault = defaultPrice(item.product, priceMode)
+              const isEdited = item.manually_edited && unitPrice !== modeDefault
               return (
                 <div key={idx} className={`px-4 py-3 border-t border-gray-50 ${overStock ? 'bg-red-50' : ''}`}>
+                  {/* Name + remove */}
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="min-w-0">
                       <p className="font-semibold text-gray-800 truncate">{item.product.name}</p>
-                      <p className="text-xs text-gray-400">{fmt(item.unit_price)} each</p>
+                      <p className="text-xs text-gray-400">
+                        Retail: {fmt(retailPrice)} · Wholesale: {fmt(wholesalePrice)}
+                      </p>
                     </div>
                     <button
                       onClick={() => removeItem(idx)}
@@ -210,10 +293,40 @@ export function NewSale() {
                       ×
                     </button>
                   </div>
-                  <div className="flex items-center justify-between">
+
+                  {/* Qty + editable unit price + line total */}
+                  <div className="flex items-center gap-2 mb-1.5">
                     <QtyControl value={item.quantity} onChange={(qty) => updateQty(idx, qty)} />
-                    <p className="font-bold text-gray-800">{fmt(item.quantity * item.unit_price)}</p>
+                    <span className="text-gray-400 text-sm shrink-0">×</span>
+                    <div className="flex-1 relative">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.unit_price}
+                        onChange={(e) => updatePrice(idx, e.target.value)}
+                        className={`w-full border rounded-lg px-3 py-1.5 text-sm font-semibold text-right focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                          isEdited
+                            ? 'border-amber-400 bg-amber-50 text-amber-800'
+                            : 'border-gray-300 bg-white text-gray-800'
+                        }`}
+                      />
+                    </div>
+                    <p className="font-bold text-gray-800 shrink-0 text-sm w-20 text-right">
+                      {fmt(item.quantity * unitPrice)}
+                    </p>
                   </div>
+
+                  {/* Reset link if manually edited */}
+                  {isEdited && (
+                    <button
+                      onClick={() => resetPrice(idx)}
+                      className="text-xs text-amber-600 underline"
+                    >
+                      Reset to {priceMode} price ({fmt(modeDefault)})
+                    </button>
+                  )}
+
                   {overStock ? (
                     <p className="text-xs text-red-600 mt-1 font-medium">
                       Only {storeQty} in store — transfer from warehouse first
