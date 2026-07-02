@@ -231,7 +231,7 @@ export async function computeBalanceSheet() {
     ])
 
   const cashSales = allSales
-    .filter((s) => ['cash', 'mobile_money', 'card'].includes(s.payment_method))
+    .filter((s) => ['cash', 'mobile_money'].includes(s.payment_method))
     .reduce((s, r) => s + (r.total ?? 0), 0)
 
   const paymentsIn = allPayments
