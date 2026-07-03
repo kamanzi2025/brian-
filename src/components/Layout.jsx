@@ -1,21 +1,12 @@
 import { useNavigate } from 'react-router-dom'
-import { SyncStatus } from './SyncStatus'
 import { BottomNav } from './BottomNav'
 import { useSyncStatus } from '../sync/useSyncStatus'
 
-/**
- * Props
- *   title    — page title shown in the blue header bar
- *   showBack — show a back arrow (navigates -1 in history)
- *   action   — optional JSX to render on the right side of the header
- *              (defaults to the sync status pill)
- */
 export function Layout({ children, title, showBack = false, action }) {
   const navigate = useNavigate()
-  const { status, lastSyncedAt, error, sync } = useSyncStatus()
+  useSyncStatus()
 
   return (
-    // pb-20 keeps content above the fixed bottom nav bar
     <div className="min-h-screen bg-gray-50 flex flex-col pb-20">
       {/* Top bar */}
       <header className="bg-blue-800 text-white px-4 py-3 flex items-center gap-3 shadow sticky top-0 z-40">
@@ -35,16 +26,7 @@ export function Layout({ children, title, showBack = false, action }) {
           {title ?? 'AutoParts Manager'}
         </h1>
 
-        <div className="shrink-0">
-          {action ?? (
-            <SyncStatus
-              status={status}
-              lastSyncedAt={lastSyncedAt}
-              error={error}
-              onRetry={sync}
-            />
-          )}
-        </div>
+        {action && <div className="shrink-0">{action}</div>}
       </header>
 
       {/* Page content */}
