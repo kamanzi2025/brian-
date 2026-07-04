@@ -24,8 +24,8 @@ export default defineConfig({
       },
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
-        name: 'AutoParts Manager',
-        short_name: 'AutoParts',
+        name: 'AutoParts Store Manager',
+        short_name: 'AutoParts Store',
         description: 'Financial management for auto parts shop',
         theme_color: '#1e40af',
         background_color: '#ffffff',

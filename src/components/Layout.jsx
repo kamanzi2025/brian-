@@ -23,7 +23,7 @@ export function Layout({ children, title, showBack = false, action }) {
         )}
 
         <h1 className="flex-1 font-bold text-lg tracking-tight truncate">
-          {title ?? 'AutoParts Manager'}
+          {title ?? 'AutoParts Store Manager'}
         </h1>
 
         {action && <div className="shrink-0">{action}</div>}

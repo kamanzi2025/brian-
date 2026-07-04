@@ -43,7 +43,7 @@ export function Login() {
   return (
     <div className="min-h-screen bg-blue-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">AutoParts Manager</h1>
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">AutoParts Store Manager</h1>
 
         {/* Tabs */}
         <div className="flex rounded-lg overflow-hidden border border-gray-200 mb-6">

@@ -11,7 +11,7 @@ import { fmt } from '../utils/format'
  *   onClose         closes the overlay
  */
 export function InvoicePrint({ sale, items, customer, onClose }) {
-  const businessName = 'AutoParts Manager'
+  const businessName = 'AutoParts Store Manager'
 
   function buildText() {
     const lines = []
