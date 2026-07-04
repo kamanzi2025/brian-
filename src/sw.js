@@ -7,43 +7,37 @@ self.skipWaiting()
 cleanupOutdatedCaches()
 precacheAndRoute(self.__WB_MANIFEST)
 
-// Always fetch HTML from network so new deployments load immediately
 registerRoute(
   new NavigationRoute(
-    new NetworkFirst({
-      cacheName: 'html-cache',
-      networkTimeoutSeconds: 3,
-    })
+    new NetworkFirst({ cacheName: 'html-cache', networkTimeoutSeconds: 3 })
   )
 )
 
-// Supabase API — never cache
 registerRoute(
   /^https:\/\/.*\.supabase\.co\/.*/i,
   new NetworkOnly()
 )
 
-// On activate: claim all clients FIRST, then force every open tab to reload
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     self.clients.claim().then(async () => {
-      const clients = await self.clients.matchAll({
-        type: 'window',
-        includeUncontrolled: true,
+      // 1. BroadcastChannel — reaches ALL tabs from same origin, no SW control needed
+      try {
+        const bc = new BroadcastChannel('sw-reload')
+        bc.postMessage('reload')
+        setTimeout(() => bc.close(), 1000)
+      } catch (_) {}
+
+      // 2. postMessage + navigate every open window
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      clients.forEach((client) => {
+        try { client.navigate(client.url) } catch (_) {}
+        try { client.postMessage({ type: 'FORCE_RELOAD' }) } catch (_) {}
       })
-      await Promise.all(
-        clients.map((client) =>
-          client.navigate(client.url).catch(() => {
-            // navigate() not supported on this browser — send a message instead
-            client.postMessage({ type: 'FORCE_RELOAD' })
-          })
-        )
-      )
     })
   )
 })
 
-// Fallback: listen for FORCE_RELOAD message (handled in main.jsx)
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
 })
