@@ -1,10 +1,8 @@
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
-import { clientsClaim } from 'workbox-core'
 import { registerRoute, NavigationRoute } from 'workbox-routing'
 import { NetworkFirst, NetworkOnly } from 'workbox-strategies'
 
 self.skipWaiting()
-clientsClaim()
 
 cleanupOutdatedCaches()
 precacheAndRoute(self.__WB_MANIFEST)
@@ -25,14 +23,27 @@ registerRoute(
   new NetworkOnly()
 )
 
-// When this new SW activates, force all open tabs to reload
-// so they immediately get the new JS bundle — no manual refresh needed
+// On activate: claim all clients FIRST, then force every open tab to reload
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    self.clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clients) => {
-        clients.forEach((client) => client.navigate(client.url))
+    self.clients.claim().then(async () => {
+      const clients = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
       })
+      await Promise.all(
+        clients.map((client) =>
+          client.navigate(client.url).catch(() => {
+            // navigate() not supported on this browser — send a message instead
+            client.postMessage({ type: 'FORCE_RELOAD' })
+          })
+        )
+      )
+    })
   )
+})
+
+// Fallback: listen for FORCE_RELOAD message (handled in main.jsx)
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
 })

@@ -7,13 +7,17 @@ import App from './App.jsx'
 // Auto-register SW (autoUpdate mode handles skipWaiting automatically)
 registerSW({ onNeedRefresh() {}, onOfflineReady() {} })
 
-// Reload the page whenever a new SW takes control — this is what actually refreshes the UI
+// Reload whenever a new SW takes control or sends a FORCE_RELOAD message
 let refreshing = false
-navigator.serviceWorker?.addEventListener('controllerchange', () => {
+function doReload() {
   if (!refreshing) {
     refreshing = true
     window.location.reload()
   }
+}
+navigator.serviceWorker?.addEventListener('controllerchange', doReload)
+navigator.serviceWorker?.addEventListener('message', (e) => {
+  if (e.data?.type === 'FORCE_RELOAD') doReload()
 })
 
 // Force an SW update check every time the user opens or returns to the app
