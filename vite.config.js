@@ -17,6 +17,15 @@ export default defineConfig({
         clientsClaim: true,
         runtimeCaching: [
           {
+            // Always fetch HTML from network so new deployments load immediately
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'html-cache',
+              networkTimeoutSeconds: 3,
+            },
+          },
+          {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: 'NetworkOnly',
           },
