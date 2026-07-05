@@ -38,6 +38,25 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') checkUpdate()
 })
 
+// 6. Version-check via API — completely bypasses the SW cache
+// Fetches /api/version (a serverless function, never cached by SW).
+// If the deployment ID changes while the app is open, this triggers a reload.
+let knownVersion = null
+async function checkVersion() {
+  try {
+    const r = await fetch('/api/version', { cache: 'no-store' })
+    if (!r.ok) return
+    const { v } = await r.json()
+    if (knownVersion === null) { knownVersion = v; return }
+    if (v !== knownVersion) doReload()
+  } catch (_) {}
+}
+checkVersion()
+setInterval(checkVersion, 30_000)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkVersion()
+})
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />

@@ -3,8 +3,10 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const base = process.env.VITE_BASE_PATH || '/'
+
 export default defineConfig({
-  base: '/',
+  base,
   plugins: [
     react(),
     tailwindcss(),
@@ -14,7 +16,7 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.js',
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
       },
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
