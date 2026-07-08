@@ -96,6 +96,21 @@ export function PLReport({ from, to }) {
         </p>
       </section>
 
+      {/* ── VAT collected (informational — not part of revenue/profit) ── */}
+      {data.vatCollected > 0 && (
+        <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <div className="flex justify-between items-baseline">
+            <span className="text-sm text-gray-600">VAT Collected (18%)</span>
+            <span className="text-sm font-semibold text-gray-700 tabular-nums">
+              {fmt(data.vatCollected)}
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">
+            Shown for reference only — held for tax remittance, not counted as revenue or profit.
+          </p>
+        </section>
+      )}
+
       {/* ── Expense breakdown ───────────────────────────── */}
       {expenseEntries.length > 0 && (
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">

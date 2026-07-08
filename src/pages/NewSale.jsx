@@ -47,6 +47,7 @@ export function NewSale() {
   const [customer, setCustomer] = useState(null)
   const [items, setItems] = useState([])
   const [priceMode, setPriceModeState] = useState('retail') // 'retail' | 'wholesale'
+  const [includeVat, setIncludeVat] = useState(true)
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [salesmanName, setSalesmanName] = useState('')
   const [deliveryAddress, setDeliveryAddress] = useState('')
@@ -61,7 +62,7 @@ export function NewSale() {
   const hasStockError = items.some((i) => i.quantity > (i.product.qty_store ?? 0))
 
   const subtotal = items.reduce((sum, i) => sum + i.quantity * (parseFloat(i.unit_price) || 0), 0)
-  const vatAmount = subtotal * 0.18
+  const vatAmount = includeVat ? subtotal * 0.18 : 0
   const total = subtotal + vatAmount
 
   function defaultPrice(product, mode) {
@@ -152,6 +153,7 @@ export function NewSale() {
         status: 'completed',
         subtotal,
         vat_amount: vatAmount,
+        vat_included: includeVat,
         total,
         salesman_name: salesmanName.trim() || null,
         delivery_address: deliveryAddress.trim() || null,
@@ -251,6 +253,34 @@ export function NewSale() {
                 }`}
               >
                 <p className={`text-sm font-semibold ${priceMode === key ? 'text-blue-700' : 'text-gray-700'}`}>
+                  {label}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* ── VAT toggle ────────────────────────────────── */}
+        <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+            VAT
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { key: true, label: 'Include VAT', sub: '18% added to total' },
+              { key: false, label: 'No VAT', sub: 'Sale is VAT-exempt' },
+            ].map(({ key, label, sub }) => (
+              <button
+                key={String(key)}
+                onClick={() => setIncludeVat(key)}
+                className={`py-3 px-3 rounded-xl text-left border-2 transition-colors ${
+                  includeVat === key
+                    ? 'border-blue-600 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <p className={`text-sm font-semibold ${includeVat === key ? 'text-blue-700' : 'text-gray-700'}`}>
                   {label}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
@@ -391,10 +421,12 @@ export function NewSale() {
             <span>Subtotal ({items.length} item{items.length !== 1 ? 's' : ''})</span>
             <span>{fmt(subtotal)}</span>
           </div>
-          <div className="flex items-center justify-between text-sm text-gray-500">
-            <span>VAT (18%)</span>
-            <span>{fmt(vatAmount)}</span>
-          </div>
+          {includeVat && (
+            <div className="flex items-center justify-between text-sm text-gray-500">
+              <span>VAT (18%)</span>
+              <span>{fmt(vatAmount)}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between pt-2 border-t border-gray-100">
             <p className="font-bold text-gray-800">Total</p>
             <p className="text-2xl font-bold text-gray-800">{fmt(total)}</p>

@@ -147,10 +147,12 @@ export function SaleDetail() {
             <span>Subtotal</span>
             <span>{fmt(subtotal)}</span>
           </div>
-          <div className="flex justify-between text-sm text-gray-500">
-            <span>VAT (18%)</span>
-            <span>{fmt(vatAmount)}</span>
-          </div>
+          {vatAmount > 0 && (
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>VAT (18%)</span>
+              <span>{fmt(vatAmount)}</span>
+            </div>
+          )}
           <div className="flex justify-between pt-2 border-t border-gray-100">
             <span className="font-bold text-gray-800">Total</span>
             <span className="text-xl font-bold text-gray-800">{fmt(total)}</span>

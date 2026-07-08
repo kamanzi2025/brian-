@@ -29,7 +29,7 @@ export function InvoicePrint({ sale, items, customer, onClose }) {
     })
     lines.push('─'.repeat(36))
     lines.push(`Subtotal:  ${fmt(sale.subtotal)}`)
-    lines.push(`VAT (18%): ${fmt(sale.vat_amount)}`)
+    if (sale.vat_amount > 0) lines.push(`VAT (18%): ${fmt(sale.vat_amount)}`)
     lines.push(`TOTAL:     ${fmt(sale.total)}`)
     lines.push('─'.repeat(36))
     lines.push(`Payment:   ${sale.payment_method?.replace('_', ' ') ?? '—'}`)
@@ -146,10 +146,12 @@ export function InvoicePrint({ sale, items, customer, onClose }) {
                 <span>Subtotal</span>
                 <span>{fmt(sale.subtotal)}</span>
               </div>
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>VAT (18%)</span>
-                <span>{fmt(sale.vat_amount)}</span>
-              </div>
+              {sale.vat_amount > 0 && (
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>VAT (18%)</span>
+                  <span>{fmt(sale.vat_amount)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold text-gray-900 pt-1.5 border-t border-gray-100">
                 <span>Total</span>
                 <span className="text-lg">{fmt(sale.total)}</span>

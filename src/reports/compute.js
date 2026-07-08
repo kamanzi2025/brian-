@@ -48,7 +48,9 @@ export async function computePL({ from, to }) {
     .filter((s) => !s.voided && s.status !== 'cancelled')
     .toArray()
 
-  const revenue = sales.reduce((s, r) => s + (r.total ?? 0), 0)
+  // Revenue excludes VAT — VAT collected is a tax liability, not income.
+  const revenue = sales.reduce((s, r) => s + (r.subtotal ?? ((r.total ?? 0) - (r.vat_amount ?? 0))), 0)
+  const vatCollected = sales.reduce((s, r) => s + (r.vat_amount ?? 0), 0)
 
   let cogs = 0
   if (sales.length > 0) {
@@ -110,6 +112,7 @@ export async function computePL({ from, to }) {
 
   return {
     revenue,
+    vatCollected,
     cogs,
     grossProfit,
     grossMargin: revenue > 0 ? (grossProfit / revenue) * 100 : 0,
@@ -165,7 +168,7 @@ export async function computePLMonthly({ from, to }) {
   for (const sale of allSales) {
     const k = sale.date.slice(0, 7)
     ensure(k)
-    months[k].revenue += sale.total ?? 0
+    months[k].revenue += sale.subtotal ?? ((sale.total ?? 0) - (sale.vat_amount ?? 0))
   }
   for (const item of allItems) {
     const sale = saleMap.get(item.sale_id)

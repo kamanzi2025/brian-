@@ -24,7 +24,7 @@ export function Home() {
         .equals(todayStr)
         .filter((s) => !s.voided && s.status !== 'cancelled')
         .toArray()
-        .then((rows) => rows.reduce((s, r) => s + (r.total ?? 0), 0)),
+        .then((rows) => rows.reduce((s, r) => s + (r.subtotal ?? ((r.total ?? 0) - (r.vat_amount ?? 0))), 0)),
     [todayStr]
   )
 
