@@ -50,9 +50,6 @@ const SYNCED_TABLES = [
   'supplier_tabs',
 ]
 
-// Child tables that need to be pushed alongside their parent
-const CHILD_TABLES = ['sale_items', 'purchase_items', 'quotation_items', 'return_items']
-
 const LAST_SYNCED_KEY = 'autoparts_lastSyncedAt'
 
 function getLastSyncedAt() {
@@ -83,7 +80,7 @@ async function pushTable(tableName) {
   await markSynced(tableName, rows.map((r) => r.id))
 }
 
-async function pushChildTable(tableName, parentIdField) {
+async function pushChildTable(tableName) {
   // For child tables we push all rows because they have no `synced` flag.
   // In practice, parent rows are pushed first; by the time a parent is synced
   // the children should be consistent. A simple "push everything" approach
@@ -104,28 +101,49 @@ async function pushAll() {
     await pushTable(table)
   }
   // Push children after parents so foreign key constraints are satisfied
-  await pushChildTable('sale_items', 'sale_id')
-  await pushChildTable('purchase_items', 'purchase_id')
-  await pushChildTable('quotation_items', 'quotation_id')
-  await pushChildTable('return_items', 'return_id')
+  await pushChildTable('sale_items')
+  await pushChildTable('purchase_items')
+  await pushChildTable('quotation_items')
+  await pushChildTable('return_items')
 }
 
 // ─── PULL ────────────────────────────────────────────────────────────────────
 
-async function pullTable(tableName, since) {
-  let query = supabase.from(tableName).select('*')
+// PostgREST caps a single response at 1000 rows by default. Page through
+// with .range() so a sync never silently drops rows once a table grows past
+// that — without this, older/newer rows depending on default ordering would
+// simply never reach other devices.
+const PAGE_SIZE = 1000
 
-  if (since) {
-    // Only fetch rows that changed after our last sync.
-    // `gt` = strictly greater than, so we don't re-fetch the row that set
-    // the lastSyncedAt timestamp.
-    query = query.gt('updated_at', since)
+async function pullAllPages(buildQuery) {
+  const rows = []
+  let from = 0
+  while (true) {
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    rows.push(...data)
+    if (data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
   }
+  return rows
+}
 
-  const { data, error } = await query
+async function pullTable(tableName, since) {
+  const data = await pullAllPages(() => {
+    let query = supabase.from(tableName).select('*')
+    if (since) {
+      // Only fetch rows that changed after our last sync.
+      // `gt` = strictly greater than, so we don't re-fetch the row that set
+      // the lastSyncedAt timestamp.
+      query = query.gt('updated_at', since)
+    }
+    return query
+  }).catch((error) => {
+    throw new Error(`Pull failed for ${tableName}: ${error.message}`)
+  })
 
-  if (error) throw new Error(`Pull failed for ${tableName}: ${error.message}`)
-  if (!data || data.length === 0) return
+  if (data.length === 0) return
 
   // Store with synced=1 — these came from the server and are up to date.
   // Dexie's bulkPut overwrites existing rows with the same primary key,
@@ -134,15 +152,13 @@ async function pullTable(tableName, since) {
   await upsertLocal(tableName, localRows)
 }
 
-async function pullChildTable(tableName, since) {
-  // Child tables don't have updated_at; pull them all on first sync,
-  // or pull by parent id delta on subsequent syncs (simple: just pull all
-  // that are newer than any recently synced parent — here we keep it simple
-  // and pull everything, since these tables tend to be append-only)
-  const { data, error } = await supabase.from(tableName).select('*')
-  if (error)
+async function pullChildTable(tableName) {
+  // Child tables don't have updated_at; pull them all every sync since
+  // they tend to be append-only.
+  const data = await pullAllPages(() => supabase.from(tableName).select('*')).catch((error) => {
     throw new Error(`Pull failed for ${tableName}: ${error.message}`)
-  if (data && data.length > 0) {
+  })
+  if (data.length > 0) {
     await upsertLocal(tableName, data)
   }
 }
@@ -151,10 +167,10 @@ async function pullAll(since) {
   for (const table of SYNCED_TABLES) {
     await pullTable(table, since)
   }
-  await pullChildTable('sale_items', since)
-  await pullChildTable('purchase_items', since)
-  await pullChildTable('quotation_items', since)
-  await pullChildTable('return_items', since)
+  await pullChildTable('sale_items')
+  await pullChildTable('purchase_items')
+  await pullChildTable('quotation_items')
+  await pullChildTable('return_items')
 }
 
 // ─── PUBLIC API ───────────────────────────────────────────────────────────────

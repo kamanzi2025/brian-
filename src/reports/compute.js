@@ -224,7 +224,7 @@ export async function computePLMonthly({ from, to }) {
 export async function computeBalanceSheet() {
   const [allSales, allPayments, allExpenses, allPurchases, allProducts, allCustomers, allSuppliers] =
     await Promise.all([
-      db.sales.filter((s) => s.status !== 'cancelled').toArray(),
+      db.sales.filter((s) => !s.voided && s.status !== 'cancelled').toArray(),
       db.payments.toArray(),
       db.expenses.toArray(),
       db.purchases.toArray(),
@@ -277,7 +277,7 @@ export async function computeCashFlow({ from, to }) {
   const [sales, payments, expenses] = await Promise.all([
     db.sales
       .where('date').between(from, to, true, true)
-      .filter((s) => s.status !== 'cancelled')
+      .filter((s) => !s.voided && s.status !== 'cancelled')
       .toArray(),
     db.payments.where('date').between(from, to, true, true).toArray(),
     db.expenses.where('date').between(from, to, true, true).toArray(),
@@ -397,7 +397,7 @@ export async function computeInventory() {
 
   return {
     rows,
-    totalValue: rows.reduce((s, p) => s + p.wholesaleValue, 0),
+    totalValue: rows.reduce((s, p) => s + p.stockValue, 0),
     totalRetailValue: rows.reduce((s, p) => s + p.retailValue, 0),
     totalWholesaleValue: rows.reduce((s, p) => s + p.wholesaleValue, 0),
     totalStoreValue: rows.reduce((s, p) => s + p.storeValue, 0),
