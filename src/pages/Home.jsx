@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { useAuth } from '../hooks/useAuth'
 import { Layout } from '../components/Layout'
+import { useLastSyncError } from '../sync/useSyncStatus'
 import { fmt, today } from '../utils/format'
 
 const SYNCED_TABLES = [
@@ -15,6 +16,7 @@ export function Home() {
   const { signOut } = useAuth()
 
   const todayStr = today()
+  const syncError = useLastSyncError()
 
   // Today's revenue (non-voided sales today)
   const todayRevenue = useLiveQuery(
@@ -114,6 +116,9 @@ export function Home() {
         {unsyncedCount > 0 && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-800">
             <span className="font-semibold">{unsyncedCount}</span> change{unsyncedCount !== 1 ? 's' : ''} not yet synced — will upload when online.
+            {syncError && (
+              <p className="mt-1 text-xs text-red-700 break-words">Sync error: {syncError}</p>
+            )}
           </div>
         )}
 

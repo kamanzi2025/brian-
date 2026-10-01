@@ -110,15 +110,29 @@ async function pushChildTable(tableName) {
     throw new Error(`Push failed for ${tableName}: ${error.message}`)
 }
 
-async function pushAll() {
-  for (const table of SYNCED_TABLES) {
-    await pushTable(table)
+const CHILD_TABLES = ['sale_items', 'purchase_items', 'quotation_items', 'return_items']
+
+// Runs every step even if some fail, so one bad table can't block the rest of
+// the sync (a failing stock_movements push used to stop sale_items from ever
+// uploading and stop the device from ever pulling). Returns the error messages.
+async function runEach(steps) {
+  const errors = []
+  for (const step of steps) {
+    try {
+      await step()
+    } catch (err) {
+      errors.push(err.message)
+    }
   }
-  // Push children after parents so foreign key constraints are satisfied
-  await pushChildTable('sale_items')
-  await pushChildTable('purchase_items')
-  await pushChildTable('quotation_items')
-  await pushChildTable('return_items')
+  return errors
+}
+
+function pushAll() {
+  return runEach([
+    ...SYNCED_TABLES.map((t) => () => pushTable(t)),
+    // Children after parents so foreign key constraints are satisfied
+    ...CHILD_TABLES.map((t) => () => pushChildTable(t)),
+  ])
 }
 
 // ─── PULL ────────────────────────────────────────────────────────────────────
@@ -184,16 +198,15 @@ async function pullChildTable(tableName) {
   }
 }
 
-async function pullAll() {
+function pullAll() {
   const cursors = getPullCursors()
-  for (const table of SYNCED_TABLES) {
-    cursors[table] = await pullTable(table, cursors[table] ?? null)
-    savePullCursors(cursors)
-  }
-  await pullChildTable('sale_items')
-  await pullChildTable('purchase_items')
-  await pullChildTable('quotation_items')
-  await pullChildTable('return_items')
+  return runEach([
+    ...SYNCED_TABLES.map((t) => async () => {
+      cursors[t] = await pullTable(t, cursors[t] ?? null)
+      savePullCursors(cursors)
+    }),
+    ...CHILD_TABLES.map((t) => () => pullChildTable(t)),
+  ])
 }
 
 // ─── PUBLIC API ───────────────────────────────────────────────────────────────
@@ -213,8 +226,8 @@ export async function runSync() {
   } = await supabase.auth.getSession()
   if (!session) throw new Error('Not authenticated')
 
-  await pushAll()
-  await pullAll()
+  const errors = [...(await pushAll()), ...(await pullAll())]
+  if (errors.length > 0) throw new Error(errors.join(' | '))
 
   const syncedAt = new Date().toISOString()
   localStorage.setItem(LAST_SYNCED_KEY, syncedAt)

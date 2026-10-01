@@ -9,6 +9,27 @@ import { SUPABASE_CONFIGURED } from '../db/supabase'
 // 'offline' — browser reports no network connection
 // 'error'   — last sync attempt failed
 
+// The last sync error, shared with pages outside this hook (the Home banner)
+// since the header status pill was removed.
+export const SYNC_ERROR_KEY = 'autoparts_lastSyncError'
+export const SYNC_ERROR_EVENT = 'autoparts:sync-error'
+
+function reportSyncError(message) {
+  if (message) localStorage.setItem(SYNC_ERROR_KEY, message)
+  else localStorage.removeItem(SYNC_ERROR_KEY)
+  window.dispatchEvent(new Event(SYNC_ERROR_EVENT))
+}
+
+export function useLastSyncError() {
+  const [message, setMessage] = useState(() => localStorage.getItem(SYNC_ERROR_KEY))
+  useEffect(() => {
+    const update = () => setMessage(localStorage.getItem(SYNC_ERROR_KEY))
+    window.addEventListener(SYNC_ERROR_EVENT, update)
+    return () => window.removeEventListener(SYNC_ERROR_EVENT, update)
+  }, [])
+  return message
+}
+
 export function useSyncStatus() {
   const [status, setStatus] = useState(SUPABASE_CONFIGURED ? 'idle' : 'local')
   const [lastSyncedAt, setLastSyncedAt] = useState(
@@ -32,10 +53,12 @@ export function useSyncStatus() {
       const syncedAt = await runSync()
       setLastSyncedAt(syncedAt)
       setStatus('synced')
+      reportSyncError(null)
     } catch (err) {
       console.error('Sync error:', err)
       setError(err.message)
       setStatus('error')
+      reportSyncError(err.message)
     } finally {
       syncingRef.current = false
     }
