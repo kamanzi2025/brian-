@@ -10,12 +10,14 @@
  *   3. On success, flip `synced = 1` in IndexedDB for those rows.
  *
  * PULL (Supabase → local):
- *   1. Read `lastSyncedAt` from localStorage (null on first run).
- *   2. Fetch from each Supabase table all rows where `updated_at > lastSyncedAt`.
- *      On first run, fetch everything.
+ *   1. Read the table's pull cursor from localStorage (none on first run).
+ *   2. Fetch every row with `updated_at >= cursor` (everything on first run).
+ *      `updated_at` is stamped by a server trigger on insert and update, so
+ *      it is the server's clock, not the device's.
  *   3. Upsert those rows into the local Dexie tables with `synced = 1`
- *      (they came from the server, so they're already in sync).
- *   4. Save the current timestamp to `lastSyncedAt` in localStorage.
+ *      (they came from the server, so they're already in sync), skipping
+ *      rows that were edited locally mid-sync.
+ *   4. Advance the cursor to the highest `updated_at` received.
  *
  * CONFLICT RESOLUTION:
  *   Most-recent-write wins. Both sides store `updated_at`. During pull,
@@ -50,14 +52,26 @@ const SYNCED_TABLES = [
   'supplier_tabs',
 ]
 
+// Shown in the UI as "last synced" — not used to decide what to pull.
 const LAST_SYNCED_KEY = 'autoparts_lastSyncedAt'
 
-function getLastSyncedAt() {
-  return localStorage.getItem(LAST_SYNCED_KEY) // ISO string or null
+// Per-table pull cursors: the highest server-side `updated_at` seen so far.
+// They come from the server's clock (see supabase_migration_v3.sql), never
+// the device's, so clock drift or offline edits can't make a device skip rows.
+// The key is versioned: bumping it makes every device do one full re-pull,
+// which recovers rows the old device-clock cursor silently skipped.
+const PULL_CURSORS_KEY = 'autoparts_pullCursors_v2'
+
+function getPullCursors() {
+  try {
+    return JSON.parse(localStorage.getItem(PULL_CURSORS_KEY)) ?? {}
+  } catch {
+    return {}
+  }
 }
 
-function saveLastSyncedAt(isoString) {
-  localStorage.setItem(LAST_SYNCED_KEY, isoString)
+function savePullCursors(cursors) {
+  localStorage.setItem(PULL_CURSORS_KEY, JSON.stringify(cursors))
 }
 
 // ─── PUSH ────────────────────────────────────────────────────────────────────
@@ -77,7 +91,7 @@ async function pushTable(tableName) {
 
   if (error) throw new Error(`Push failed for ${tableName}: ${error.message}`)
 
-  await markSynced(tableName, rows.map((r) => r.id))
+  await markSynced(tableName, rows)
 }
 
 async function pushChildTable(tableName) {
@@ -129,27 +143,34 @@ async function pullAllPages(buildQuery) {
   return rows
 }
 
+// Returns the highest `updated_at` pulled, or `since` if nothing changed.
 async function pullTable(tableName, since) {
   const data = await pullAllPages(() => {
-    let query = supabase.from(tableName).select('*')
+    // Stable ordering so .range() pages never skip or repeat rows.
+    let query = supabase.from(tableName).select('*').order('updated_at').order('id')
     if (since) {
-      // Only fetch rows that changed after our last sync.
-      // `gt` = strictly greater than, so we don't re-fetch the row that set
-      // the lastSyncedAt timestamp.
-      query = query.gt('updated_at', since)
+      // `gte`, not `gt`: several rows can share the cursor's timestamp and a
+      // re-fetched row is harmless (bulkPut is idempotent).
+      query = query.gte('updated_at', since)
     }
     return query
   }).catch((error) => {
     throw new Error(`Pull failed for ${tableName}: ${error.message}`)
   })
 
-  if (data.length === 0) return
+  if (data.length === 0) return since
+
+  // Don't clobber a row edited locally while this sync was running — it is
+  // still synced=0 and the next push will send it.
+  const pendingIds = new Set((await getUnsynced(tableName)).map((r) => r.id))
 
   // Store with synced=1 — these came from the server and are up to date.
-  // Dexie's bulkPut overwrites existing rows with the same primary key,
-  // so this acts as "last write wins" for the local copy.
-  const localRows = data.map((r) => ({ ...r, synced: 1 }))
+  const localRows = data
+    .filter((r) => !pendingIds.has(r.id))
+    .map((r) => ({ ...r, synced: 1 }))
   await upsertLocal(tableName, localRows)
+
+  return data[data.length - 1].updated_at
 }
 
 async function pullChildTable(tableName) {
@@ -163,9 +184,11 @@ async function pullChildTable(tableName) {
   }
 }
 
-async function pullAll(since) {
+async function pullAll() {
+  const cursors = getPullCursors()
   for (const table of SYNCED_TABLES) {
-    await pullTable(table, since)
+    cursors[table] = await pullTable(table, cursors[table] ?? null)
+    savePullCursors(cursors)
   }
   await pullChildTable('sale_items')
   await pullChildTable('purchase_items')
@@ -190,16 +213,10 @@ export async function runSync() {
   } = await supabase.auth.getSession()
   if (!session) throw new Error('Not authenticated')
 
-  const since = getLastSyncedAt()
-
   await pushAll()
+  await pullAll()
 
-  // Capture "now" before pulling so we don't miss records written between
-  // the start of this push and the end of the pull
   const syncedAt = new Date().toISOString()
-
-  await pullAll(since)
-
-  saveLastSyncedAt(syncedAt)
+  localStorage.setItem(LAST_SYNCED_KEY, syncedAt)
   return syncedAt
 }

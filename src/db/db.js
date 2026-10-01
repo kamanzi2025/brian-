@@ -158,8 +158,15 @@ export function getUnsynced(table) {
   return db[table].where('synced').equals(0).toArray()
 }
 
-export async function markSynced(table, ids) {
-  await db[table].where('id').anyOf(ids).modify({ synced: 1 })
+// Only flips rows that haven't been edited again since they were read for the
+// push — otherwise an edit made mid-push would be marked synced and never sent.
+export async function markSynced(table, rows) {
+  const pushedAt = new Map(rows.map((r) => [r.id, r.updated_at]))
+  await db[table]
+    .where('id')
+    .anyOf([...pushedAt.keys()])
+    .filter((r) => r.updated_at === pushedAt.get(r.id))
+    .modify({ synced: 1 })
 }
 
 export async function upsertLocal(table, records) {
